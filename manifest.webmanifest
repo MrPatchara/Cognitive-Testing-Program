@@ -1,0 +1,16 @@
+{
+  "name": "CTB — ชุดประเมินสมรรถภาพทางสมอง",
+  "short_name": "CTB",
+  "description": "Computerized Cognitive Test Battery — 10 แบบทดสอบ เทียบเกณฑ์กรมพลศึกษา",
+  "lang": "th",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0F2942",
+  "theme_color": "#0F2942",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
