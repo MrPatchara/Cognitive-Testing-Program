@@ -39,14 +39,9 @@ const T = (() => {
     } catch (e) {}
   }
 
-  /* ---------- fullscreen ---------- */
+  /* ---------- fullscreen (disabled: ไม่บังคับเข้าเต็มจอแล้ว) ---------- */
   async function enterFullscreen(node) {
-    try {
-      const t = node || document.documentElement;
-      if (t.requestFullscreen) await t.requestFullscreen({ navigationUI: 'hide' });
-      else if (t.webkitRequestFullscreen) t.webkitRequestFullscreen();
-      try { await screen.orientation.lock('landscape'); } catch (e) {}
-    } catch (e) {}
+    /* no-op */
   }
   async function exitFullscreen() {
     try {
