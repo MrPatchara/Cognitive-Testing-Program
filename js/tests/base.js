@@ -38,6 +38,18 @@ const T = (() => {
       }
     } catch (e) {}
   }
+  function releaseWakeLock() {
+    return keepAwake(false);
+  }
+
+  /* ---------- AbortController support ---------- */
+  function createAbortSignal() {
+    const controller = new AbortController();
+    return {
+      signal: controller.signal,
+      abort: () => controller.abort()
+    };
+  }
 
   /* ---------- fullscreen (disabled: ไม่บังคับเข้าเต็มจอแล้ว) ---------- */
   async function enterFullscreen(node) {
@@ -342,8 +354,9 @@ const T = (() => {
 
   return {
     now, el, clear, sleep, vibrate,
-    keepAwake, enterFullscreen, exitFullscreen,
+    keepAwake, releaseWakeLock, enterFullscreen, exitFullscreen,
     bindKey, unbindKey, clearKeys,
+    createAbortSignal,
     adviceScreen, stage, centerText, progressBar, trialLabel,
     responseButtons, startButton, countdown, resultSummary,
     mark

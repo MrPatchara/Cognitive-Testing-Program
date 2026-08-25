@@ -9,6 +9,7 @@
 'use strict';
 
 async function runSVT(stageEl, opts) {
+  const signal = opts?.signal;
   const ITEMS = 30;
   const TIME_LIMIT = 1500; /* วินาที */
 
@@ -32,21 +33,29 @@ async function runSVT(stageEl, opts) {
     pos: `${(x / (100 - 15) * 100).toFixed(3)}% 79.452%`
   }));
 
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
   /* ---- หน้าคำแนะนำ: รูปเดียว desc_10_02.png เต็มกรอบ ---- */
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.adviceScreen(T.clear(stageEl), {
       title: 'แบบทดสอบ<br> Spatial Visualization (SVT)',
       desc: 'ดูภาพด้านบนแล้วแตะรูปคำตอบด้านล่าง',
       images: ['assets/advice/desc_10_02.png'],
       startLabel: '▶ เริ่มซ้อม (3 ข้อ)', onDone: resolve
     });
+    const abortAdvice = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortAdvice);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.keepAwake(true);
   try { await T.enterFullscreen(); } catch (e) {}
 
-  function runExam(count, srcOf, keyOf, practice) {
-    return new Promise((resolveExam) => {
+  async function runExam(count, srcOf, keyOf, practice) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    
+    return new Promise((resolveExam, rejectExam) => {
       T.clearKeys();
       const st = T.stage(stageEl);
       st.classList.remove('stage-black');
@@ -77,6 +86,7 @@ async function runSVT(stageEl, opts) {
       st.appendChild(wrap);
 
       function show() {
+        if (signal?.aborted) { rejectExam(new DOMException('Aborted', 'AbortError')); return; }
         locked = false;
         figs.forEach((b) => b.classList.remove('picked'));
         const src = srcOf(cur);
@@ -131,9 +141,18 @@ async function runSVT(stageEl, opts) {
         }, 1000);
       }
 
+      const abortHandler = () => {
+        if (timerId) clearInterval(timerId);
+        T.clear(stageEl);
+        rejectExam(new DOMException('Aborted', 'AbortError'));
+      };
+      signal?.addEventListener('abort', abortHandler);
+
       show();
     });
   }
+
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- ซ้อม 3 ข้อ (svt001-003) — ไม่นับคะแนน ---- */
   await runExam(
@@ -142,9 +161,11 @@ async function runSVT(stageEl, opts) {
     () => null,
     true
   );
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- ผลการซ้อม ---- */
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'จบการซ้อม',
       rows: [['จำนวนข้อซ้อม', '3 ข้อ']],
@@ -152,7 +173,10 @@ async function runSVT(stageEl, opts) {
       doneLabel: '▶ เริ่มทดสอบจริง (30 ข้อ · 25 นาที)',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.keepAwake(true);
 
@@ -163,9 +187,11 @@ async function runSVT(stageEl, opts) {
     (i) => FILES[i].split('_')[1].toUpperCase(),
     false
   );
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- สรุปผล ---- */
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'ผลการทดสอบ SVT',
       stats: [
@@ -175,7 +201,10 @@ async function runSVT(stageEl, opts) {
       doneLabel: 'ไปแบบทดสอบถัดไป ▸',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.exitFullscreen();
   await T.keepAwake(false);

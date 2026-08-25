@@ -9,26 +9,35 @@
 'use strict';
 
 async function runCRT(stageEl, opts) {
+  const signal = opts?.signal;
   const PRACTICE_TRIALS = 3;
   const EXAM_TRIALS = 60;
   const INTERVAL_TIME = 500;
   const ELLIPSE_TIME = 700;
   const DARK_TIME = 1000;
 
-  await new Promise((resolve) => {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.adviceScreen(T.clear(stageEl), {
       title: 'แบบทดสอบ <br> เวลาปฏิกิริยาแบบตัวเลือก (CRT)',
       desc: 'เมื่อ "＋" เปลี่ยนเป็นวงกลมสี ให้ตอบสนองตามสีของวงกลม',
       images: ['assets/advice/desc_02_02.png'],
       onDone: resolve
     });
+    const abortAdvice = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortAdvice);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.keepAwake(true);
   try { await T.enterFullscreen(); } catch (e) {}
 
-  function runSet(nTrials, colorSeq) {
-    return new Promise((resolveSet) => {
+  async function runSet(nTrials, colorSeq) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    
+    return new Promise((resolveSet, rejectSet) => {
       T.clearKeys();
       const st = T.stage(stageEl);
       const results = [];
@@ -64,21 +73,20 @@ async function runCRT(stageEl, opts) {
             (c === 'R' && keyId === 'z') ||
             (c === 'G');
         } else if (c === 'Y') {
-          rec.ok = false; /* กดระหว่าง no-go = ผิด */
+          rec.ok = false;
         }
         finish(rec);
       }
 
       function miss() {
         const c = colorSeq[trial];
-        /* ไม่ตอบใน trial เหลือง = ถูกต้อง (ยับยั้งสำเร็จ) */
         finish({ no: 0, rt: 0, ok: c === 'Y', color: c });
       }
 
       function finish(rec) {
         if (phase === 'wait' || phase === 'idle') return;
         phase = 'wait';
-        rec.no = trial + 1;              /* เลขครั้งจริงของ trial ที่เพิ่งจบ */
+        rec.no = trial + 1;
         clearTimers();
         results.push(rec);
         blackout();
@@ -95,8 +103,8 @@ async function runCRT(stageEl, opts) {
         }, DARK_TIME);
       }
 
-      /* เริ่ม trial ปัจจุบัน — label = "ครั้งที่ trial+1" */
       function schedule() {
+        if (signal?.aborted) { rejectSet(new DOMException('Aborted', 'AbortError')); return; }
         T.trialLabel(st, trial + 1, nTrials);
         T.progressBar(st, trial / nTrials);
         phase = 'plus';
@@ -109,6 +117,15 @@ async function runCRT(stageEl, opts) {
           timers.push(setTimeout(miss, ELLIPSE_TIME));
         }, INTERVAL_TIME));
       }
+
+      const abortHandler = () => {
+        clearTimers();
+        removeBtns();
+        T.clearKeys();
+        T.clear(stageEl);
+        rejectSet(new DOMException('Aborted', 'AbortError'));
+      };
+      signal?.addEventListener('abort', abortHandler);
 
       T.centerText(st, nTrials === PRACTICE_TRIALS
         ? '<span class="mode-title">โหมดซ้อม</span>' +
@@ -131,13 +148,12 @@ async function runCRT(stageEl, opts) {
         box.remove();
         T.countdown(st, 3).then(() => {
           trial = 0;
-          schedule();                    /* เริ่มที่ "ครั้งที่ 1" */
+          schedule();
         });
       }, { once: true });
     });
   }
 
-  /* สร้างลำดับสี: Y/R/B อย่างละ 20 สุ่มลำดับ (port InitRandomColor) */
   function makeColorSeq(n) {
     const seq = [];
     for (let i = 0; i < n; i++) seq.push(i % 3 === 0 ? 'Y' : i % 3 === 1 ? 'R' : 'B');
@@ -148,9 +164,13 @@ async function runCRT(stageEl, opts) {
     return seq;
   }
 
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
   /* ---- ซ้อม ---- */
   await runSet(PRACTICE_TRIALS, makeColorSeq(PRACTICE_TRIALS));
-  await new Promise((resolve) => {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'จบการซ้อม',
       rows: [['กติกา', 'น้ำเงิน=/ · แดง=Z · เหลือง=ห้ามกด']],
@@ -158,17 +178,22 @@ async function runCRT(stageEl, opts) {
       doneLabel: 'เริ่มทดสอบจริง (60 ครั้ง) ▸',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- จริง ---- */
   const examRes = await runSet(EXAM_TRIALS, makeColorSeq(EXAM_TRIALS));
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-  /* ---- สรุปผล (RT ms + accuracy เหมือนต้นฉบับ) ---- */
+  /* ---- สรุปผล ---- */
   const v = Scoring.compute({ crt: examRes });
   const okN = examRes.filter((r) => r.ok).length;
   const noGoN = examRes.filter((r) => r.color === 'Y').length;
   const noGoPass = examRes.filter((r) => r.color === 'Y' && r.ok).length;
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'ผลการทดสอบ CRT',
       stats: [
@@ -186,7 +211,10 @@ async function runCRT(stageEl, opts) {
       doneLabel: 'ไปแบบทดสอบถัดไป ▸',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.exitFullscreen();
   await T.keepAwake(false);

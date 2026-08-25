@@ -25,6 +25,7 @@ const TMT_B_LAYOUT = [
 ];
 
 async function runTMT(stageEl, opts) {
+  const signal = opts?.signal;
   const variant = opts && opts.variant === 'B' ? 'B' : 'A';
   const layout = variant === 'B' ? TMT_B_LAYOUT : TMT_A_LAYOUT;
   const title = variant === 'B'
@@ -38,9 +39,15 @@ async function runTMT(stageEl, opts) {
     ? ['assets/advice/desc_04_01.png']
     : ['assets/advice/desc_03_02.png'];
 
-  await new Promise((resolve) => {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.adviceScreen(T.clear(stageEl), { title, desc, images: adviceImgs, onDone: resolve });
+    const abortAdvice = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortAdvice);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.keepAwake(true);
   try { await T.enterFullscreen(); } catch (e) {}
@@ -84,8 +91,10 @@ async function runTMT(stageEl, opts) {
   }
 
   /* ---------- รัน 1 รอบ ---------- */
-  function runSet(nNodes, label) {
-    return new Promise((resolveSet) => {
+  async function runSet(nNodes, label) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    
+    return new Promise((resolveSet, rejectSet) => {
       T.clearKeys();
       const st = T.stage(stageEl);
       T.centerText(st, label);
@@ -96,12 +105,10 @@ async function runTMT(stageEl, opts) {
 
       btn.addEventListener('click', () => {
         box.remove();
-        /* ลบคำอธิบายกลางจอ — ไม่ให้ติดมาบนพื้นหลังของบอร์ด */
         const msg = st.querySelector('.center-msg');
         if (msg) msg.remove();
         const { board, svg, svgNS, nodes } = buildBoard(st, nNodes);
         let nextIdx = 0, errors = 0, done = false;
-        /* หลักการต้นฉบับ: จับเวลาเริ่ม "ตั้งแต่กด Start" (CoolClassTest) */
         const t0 = T.now();
         let lastPt = null;
 
@@ -109,7 +116,6 @@ async function runTMT(stageEl, opts) {
           const ln = document.createElementNS(svgNS, 'line');
           ln.setAttribute('x1', a.x); ln.setAttribute('y1', a.y);
           ln.setAttribute('x2', b.x); ln.setAttribute('y2', b.y);
-          /* พื้นฉากเป็นสีดำ — เส้นเชื่อมต้องเป็นสีขาวจึงมองเห็นชัด */
           ln.setAttribute('stroke', color || '#FFFFFF');
           ln.setAttribute('stroke-width', '4');
           ln.setAttribute('stroke-linecap', 'round');
@@ -143,14 +149,22 @@ async function runTMT(stageEl, opts) {
           }
         }
 
-        /* แตะ/คลิกเท่านั้น — ไม่รับการลากผ่าน กันหลอนจากการกดค้างแล้วลาก */
         board.addEventListener('pointerdown', (e) => {
           const n = e.target.closest('.tmt-node');
           if (n) hit(Number(n.dataset.idx));
         });
+
+        const abortHandler = () => {
+          board.replaceWith(T.el('div'));
+          T.clear(stageEl);
+          rejectSet(new DOMException('Aborted', 'AbortError'));
+        };
+        signal?.addEventListener('abort', abortHandler);
       }, { once: true });
     });
   }
+
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- ซ้อม 5 โหนดแรก ---- */
   await runSet(Math.min(5, layout.length),
@@ -159,7 +173,9 @@ async function runTMT(stageEl, opts) {
     `<span class="nw">เชื่อม ${variant === 'B' ? '1 → A → 2 → B → 3' : '1 → 2 → 3 → 4 → 5'}</span>` +
     '<span class="nw">(ไม่บันทึกผล)</span>' +
     '</span>');
-  await new Promise((resolve) => {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'จบการซ้อม',
       rows: [['กติกา', variant === 'B' ? 'สลับเลข-ตัวอักษรจนครบ 25 จุด' : 'เรียงเลข 1 ถึง 25']],
@@ -167,14 +183,19 @@ async function runTMT(stageEl, opts) {
       doneLabel: 'เริ่มทดสอบจริง ▸',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- จริง ---- */
   const res = await runSet(layout.length,
     variant === 'B' ? 'เชื่อม 1-A-2-B … 13-L ให้เร็วที่สุด' : 'เชื่อม 1 ถึง 25 ให้เร็วที่สุด');
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- สรุปผล ---- */
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: `ผลการทดสอบ TMT-${variant}`,
       stats: [
@@ -185,7 +206,10 @@ async function runTMT(stageEl, opts) {
       doneLabel: 'ไปแบบทดสอบถัดไป ▸',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.exitFullscreen();
   await T.keepAwake(false);

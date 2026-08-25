@@ -71,6 +71,7 @@ const DF_PAGES = 24;            /* 2 x 24 = 48 ช่อง = 12 x 4 ของ�
 const DF_PRACTICE_LIMIT = 30;   /* วินาที */
 
 async function runDF(stageEl, opts) {
+  const signal = opts?.signal;
   const variant = (opts && opts.variant) || 'filled'; // filled | empty | switching
   const TIME_LIMIT = 60;
   const SET = DF_DOT_SETS[variant];
@@ -91,19 +92,27 @@ async function runDF(stageEl, opts) {
                  imgs: ['assets/advice/desc_08_01.png'] }
   }[variant];
 
-  await new Promise((resolve) => {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.adviceScreen(T.clear(stageEl), {
       title: META.title, desc: META.desc, images: META.imgs,
       startLabel: '▶ เริ่มการซ้อม', onDone: resolve
     });
+    const abortAdvice = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortAdvice);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.keepAwake(true);
   try { await T.enterFullscreen(); } catch (e) {}
 
   /* ---------- รัน 1 รอบ ---------- */
-  function runSet({ cells, limitSec, practice }) {
-    return new Promise((resolveSet) => {
+  async function runSet({ cells, limitSec, practice }) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    
+    return new Promise((resolveSet, rejectSet) => {
       T.clearKeys();
       const st = T.stage(stageEl);
       const svgNS = 'http://www.w3.org/2000/svg';
@@ -255,12 +264,26 @@ async function runDF(stageEl, opts) {
         if (timeLeft <= 5 && timeLeft > 0 && !finished) T.vibrate(15);
         maybeFinish();
       }, 1000);
+
+      const abortHandler = () => {
+        clearInterval(timerId);
+        cellRefs.forEach((r) => r.cell.remove());
+        cellRefs = [];
+        grid.innerHTML = '';
+        T.clear(stageEl);
+        rejectSet(new DOMException('Aborted', 'AbortError'));
+      };
+      signal?.addEventListener('abort', abortHandler);
     });
   }
 
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
   /* ---- ซ้อม 2 ช่อง — จบเมื่อทำรูปครบ 5 จุดได้ 1 รูป (หรือหมดเวลา) ---- */
   await runSet({ cells: DF_CELLS_PER_PAGE, limitSec: DF_PRACTICE_LIMIT, practice: true });
-  await new Promise((resolve) => {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'จบการซ้อม',
       rows: [
@@ -275,7 +298,10 @@ async function runDF(stageEl, opts) {
       doneLabel: 'เริ่มทดสอบจริง (48 ช่อง) ▸',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- จริง: 24 หน้า x 2 ช่อง ---- */
   const res = await runSet({
@@ -283,9 +309,11 @@ async function runDF(stageEl, opts) {
     limitSec: TIME_LIMIT,
     practice: false
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- สรุปผล ---- */
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: `ผลการทดสอบ ${META.short}`,
       stats: [
@@ -301,7 +329,9 @@ async function runDF(stageEl, opts) {
       doneLabel: 'ไปแบบทดสอบถัดไป ▸',
       onDone: resolve
     });
+    signal?.addEventListener('abort', () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); });
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.exitFullscreen();
   await T.keepAwake(false);

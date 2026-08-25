@@ -9,27 +9,39 @@
 'use strict';
 
 async function runSRT(stageEl, opts) {
+  const signal = opts?.signal;
   const PRACTICE_TRIALS = 3;
   const EXAM_TRIALS = 20;
   const ELLIPSE_TIME = 10000;
   const DARK_TIME = 1000;
 
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
   /* ---- จอคำแนะนำ ---- */
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.adviceScreen(T.clear(stageEl), {
       title: 'แบบทดสอบ <br> เวลาปฏิกิริยาอย่างง่าย (SRT)',
       desc: 'เมื่อ "＋" เปลี่ยนเป็นวงกลมสีแดง ให้ตอบสนองโดยเร็วที่สุด<br> กดคีย์ "/" หรือแตะกลางหน้าจอ',
       images: ['assets/advice/desc_01_02.png'],
       onDone: resolve
     });
+    const abortAdvice = () => {
+      T.clear(stageEl);
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', abortAdvice);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.keepAwake(true);
   try { await T.enterFullscreen(); } catch (e) {}
 
   /* ---- ฟังก์ชันรันชุด trials ---- */
-  function runSet(nTrials) {
-    return new Promise((resolveSet) => {
+  async function runSet(nTrials) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    
+    return new Promise((resolveSet, rejectSet) => {
       T.clearKeys();
       const st = T.stage(stageEl);
       const intervals = [];
@@ -78,7 +90,7 @@ async function runSRT(stageEl, opts) {
       function finish(rec) {
         if (phase === 'wait' || phase === 'idle') return;
         phase = 'wait';
-        rec.no = trial + 1;              /* เลขครั้งจริงของ trial ที่เพิ่งจบ */
+        rec.no = trial + 1;
         clearTimers();
         results.push(rec);
         blackout();
@@ -98,6 +110,7 @@ async function runSRT(stageEl, opts) {
 
       /* เริ่ม trial ปัจจุบัน (trial แบบ 0-based) — label = "ครั้งที่ trial+1" */
       function schedule() {
+        if (signal?.aborted) { rejectSet(new DOMException('Aborted', 'AbortError')); return; }
         T.trialLabel(st, trial + 1, nTrials);
         T.progressBar(st, trial / nTrials);
         phase = 'plus';
@@ -112,6 +125,16 @@ async function runSRT(stageEl, opts) {
         }, interval));
       }
 
+      const abortHandler = () => {
+        clearTimers();
+        st.removeEventListener('pointerdown', stagePress);
+        removeBtns();
+        T.clearKeys();
+        T.clear(stageEl);  // Immediately clear stage
+        rejectSet(new DOMException('Aborted', 'AbortError'));
+      };
+      signal?.addEventListener('abort', abortHandler);
+
       /* เริ่มชุดนี้ */
       T.centerText(st, nTrials === PRACTICE_TRIALS
         ? 'โหมดซ้อม — เมื่อเห็นวงกลมแดง ให้ตอบสนองทันที'
@@ -124,7 +147,7 @@ async function runSRT(stageEl, opts) {
         box.remove();
         T.countdown(st, 3).then(() => {
           trial = 0;
-          schedule();                    /* เริ่มที่ "ครั้งที่ 1" */
+          schedule();
         });
       }, { once: true });
     });
@@ -132,8 +155,10 @@ async function runSRT(stageEl, opts) {
 
   /* ---- ซ้อม ---- */
   const practiceRes = await runSet(PRACTICE_TRIALS);
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   const pOk = practiceRes.filter(r => r.ok).length;
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'จบการซ้อม',
       rows: [['ตอบถูกจังหวะ', `${pOk} / ${PRACTICE_TRIALS}`]],
@@ -141,14 +166,18 @@ async function runSRT(stageEl, opts) {
       doneLabel: 'เริ่มทดสอบจริง (20 ครั้ง) ▸',
       onDone: resolve
     });
+    signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- ทดสอบจริง ---- */
   const examRes = await runSet(EXAM_TRIALS);
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- สรุปผล (RT ms + accuracy เหมือนต้นฉบับ) ---- */
   const v = Scoring.compute({ srt: examRes });
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'ผลการทดสอบ SRT',
       stats: [
@@ -164,7 +193,9 @@ async function runSRT(stageEl, opts) {
       doneLabel: 'ไปแบบทดสอบถัดไป ▸',
       onDone: resolve
     });
+    signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.exitFullscreen();
   await T.keepAwake(false);

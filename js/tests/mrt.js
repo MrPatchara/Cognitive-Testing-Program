@@ -9,6 +9,7 @@
 'use strict';
 
 async function runMRT(stageEl, opts) {
+  const signal = opts?.signal;
   const ITEMS = 25;
   /* เฉลยคู่ A-D (1=A … 4=D) — port จาก mtr_array */
   const KEYS = [
@@ -28,20 +29,28 @@ async function runMRT(stageEl, opts) {
     { size: '606.06% 200%', pos: '97.60% 100%' }   /* D x81.5 w16.5 */
   ];
 
-  await new Promise((resolve) => {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.adviceScreen(T.clear(stageEl), {
       title: 'แบบทดสอบ<br> Mental Rotation (MRT)',
       desc: 'แตะเลือก 2 รูปที่หมุนแล้วเหมือนต้นแบบ (2 ใน 4)',
       images: ['assets/advice/desc_09_02.png'],
       onDone: resolve
     });
+    const abortAdvice = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortAdvice);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.keepAwake(true);
   try { await T.enterFullscreen(); } catch (e) {}
 
-  function runExam(count, getSrc, getKey, practice) {
-    return new Promise((resolveExam) => {
+  async function runExam(count, getSrc, getKey, practice) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    
+    return new Promise((resolveExam, rejectExam) => {
       T.clearKeys();
       const st = T.stage(stageEl);
       st.classList.remove('stage-black');
@@ -71,6 +80,7 @@ async function runMRT(stageEl, opts) {
       st.appendChild(wrap);
 
       function show() {
+        if (signal?.aborted) { rejectExam(new DOMException('Aborted', 'AbortError')); return; }
         picked = new Set();
         figs.forEach((b) => b.classList.remove('picked'));
         const url = `url("${getSrc(cur)}")`;
@@ -96,7 +106,6 @@ async function runMRT(stageEl, opts) {
         btn.classList.add('picked');
         T.vibrate(10);
         if (picked.size === 2) {
-          /* ตรวจเมื่อครบ 2 (port Practice9CheckDouble2Choice) */
           const key = getKey(cur);
           if (key) {
             const [a, b] = key;
@@ -113,9 +122,17 @@ async function runMRT(stageEl, opts) {
         }
       }
 
+      const abortHandler = () => {
+        T.clear(stageEl);
+        rejectExam(new DOMException('Aborted', 'AbortError'));
+      };
+      signal?.addEventListener('abort', abortHandler);
+
       show();
     });
   }
+
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- ซ้อม 3 ข้อ — port Ex9MentalRotationTest.cs ---- */
   const pScore = await runExam(
@@ -124,9 +141,11 @@ async function runMRT(stageEl, opts) {
     (i) => PRACTICE_KEYS[i],
     true
   );
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- ผลการซ้อม — ไม่นับเข้าคะแนน ---- */
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'จบการซ้อม',
       stats: [
@@ -136,7 +155,10 @@ async function runMRT(stageEl, opts) {
       doneLabel: '▶ เริ่มทดสอบจริง (25 ข้อ)',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.keepAwake(true);
 
@@ -147,9 +169,11 @@ async function runMRT(stageEl, opts) {
     (i) => KEYS[i],
     false
   );
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- สรุปผล ---- */
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'ผลการทดสอบ MRT',
       stats: [
@@ -160,7 +184,10 @@ async function runMRT(stageEl, opts) {
       doneLabel: 'ไปแบบทดสอบถัดไป ▸',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.exitFullscreen();
   await T.keepAwake(false);

@@ -8,6 +8,7 @@
 'use strict';
 
 async function runFlanker(stageEl, opts) {
+  const signal = opts?.signal;
   const PRACTICE_TRIALS = 3;
   const EXAM_TRIALS = 40;
   const INTERVAL_TIME = 500;
@@ -22,22 +23,27 @@ async function runFlanker(stageEl, opts) {
     { p: '<<<<<', type: 'Congruent',   dir: 'L' },
     { p: '>>>>>', type: 'Congruent',   dir: 'R' }
   ];
-  const arrowHtml = (ch) => ch === '<' ? '&lt;' : '&gt;';
+  const arrowHtml = (ch) => ch === '<' ? '<' : '>';
 
-  await new Promise((resolve) => {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.adviceScreen(T.clear(stageEl), {
       title: 'แบบทดสอบ <br> Flanker (FKT)',
       desc:  'ให้มองและตอบเฉพาะ<b>ลูกศรตรงกลาง</b>เท่านั้น<br><br>',
       images: ['assets/advice/desc_05_02.png'],
       onDone: resolve
     });
+    const abortAdvice = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortAdvice);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.keepAwake(true);
   try { await T.enterFullscreen(); } catch (e) {}
 
   function makeSeq(n) {
-    /* สุ่มไม่ซ้ำจาก {0,1,2,3} เหมือน patternContrl_lst */
     const seq = [];
     let pool = [];
     for (let i = 0; i < n; i++) {
@@ -47,8 +53,10 @@ async function runFlanker(stageEl, opts) {
     return seq;
   }
 
-  function runSet(nTrials) {
-    return new Promise((resolveSet) => {
+  async function runSet(nTrials) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    
+    return new Promise((resolveSet, rejectSet) => {
       T.clearKeys();
       const st = T.stage(stageEl);
       const seq = makeSeq(nTrials);
@@ -58,7 +66,6 @@ async function runFlanker(stageEl, opts) {
       const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
 
       const showPlus = () => { T.centerText(st, '<span class="fix-plus">+</span>'); };
-      /* หลักการทดสอบ: ลูกศรทั้ง 5 ตัวต้อง "สีเดียวกัน" — แยกตัวกลางด้วยตำแหน่งเท่านั้น */
       const showArrows = (idx) => {
         const p = PATTERNS[idx];
         const html = '<div class="flanker-row">' + [...p.p].map((ch) =>
@@ -95,7 +102,7 @@ async function runFlanker(stageEl, opts) {
       function finish(rec) {
         if (phase === 'wait' || phase === 'idle') return;
         phase = 'wait';
-        rec.no = trial + 1;              /* เลขครั้งจริงของ trial ที่เพิ่งจบ */
+        rec.no = trial + 1;
         clearTimers();
         results.push(rec);
         blackout();
@@ -112,8 +119,8 @@ async function runFlanker(stageEl, opts) {
         }, DARK_TIME);
       }
 
-      /* เริ่ม trial ปัจจุบัน — label = "ครั้งที่ trial+1" */
       function schedule() {
+        if (signal?.aborted) { rejectSet(new DOMException('Aborted', 'AbortError')); return; }
         T.trialLabel(st, trial + 1, nTrials);
         T.progressBar(st, trial / nTrials);
         phase = 'plus';
@@ -126,6 +133,15 @@ async function runFlanker(stageEl, opts) {
           timers.push(setTimeout(miss, ELLIPSE_TIME));
         }, INTERVAL_TIME));
       }
+
+      const abortHandler = () => {
+        clearTimers();
+        removeBtns();
+        T.clearKeys();
+        T.clear(stageEl);
+        rejectSet(new DOMException('Aborted', 'AbortError'));
+      };
+      signal?.addEventListener('abort', abortHandler);
 
       T.centerText(st, nTrials === PRACTICE_TRIALS
         ? '<span class="mode-title">โหมดซ้อม</span>' +
@@ -148,15 +164,19 @@ async function runFlanker(stageEl, opts) {
         box.remove();
         T.countdown(st, 3).then(() => {
           trial = 0;
-          schedule();                    /* เริ่มที่ "ครั้งที่ 1" */
+          schedule();
         });
       }, { once: true });
     });
   }
 
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
   /* ---- ซ้อม ---- */
   await runSet(PRACTICE_TRIALS);
-  await new Promise((resolve) => {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'จบการซ้อม',
       rows: [['กติกา', 'กลางชี้ซ้าย = Z · กลางชี้ขวา = /']],
@@ -164,16 +184,21 @@ async function runFlanker(stageEl, opts) {
       doneLabel: 'เริ่มทดสอบจริง (40 ครั้ง) ▸',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- จริง ---- */
   const examRes = await runSet(EXAM_TRIALS);
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   /* ---- สรุปผล (RT ms + accuracy เหมือนต้นฉบับ) ---- */
   const v = Scoring.compute({ flanker: examRes });
   const fmtMs = (x) => x == null ? '-' : String(Math.round(x));
   const fmtPc = (x) => x == null ? '-' : Number(x).toFixed(1) + '%';
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
     T.resultSummary(stageEl, {
       title: 'ผลการทดสอบ Flanker',
       stats: [
@@ -191,7 +216,10 @@ async function runFlanker(stageEl, opts) {
       doneLabel: 'ไปแบบทดสอบถัดไป ▸',
       onDone: resolve
     });
+    const abortSummary = () => { T.clear(stageEl); reject(new DOMException('Aborted', 'AbortError')); };
+    signal?.addEventListener('abort', abortSummary);
   });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   await T.exitFullscreen();
   await T.keepAwake(false);

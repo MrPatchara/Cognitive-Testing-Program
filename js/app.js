@@ -14,6 +14,19 @@ const App = (() => {
     running: false
   };
 
+  /* ---------- Test Abort Controller ---------- */
+  let currentTestAbort = null;
+  function startTestAbort() {
+    currentTestAbort = T.createAbortSignal();
+    return currentTestAbort.signal;
+  }
+  function abortCurrentTest() {
+    if (currentTestAbort) {
+      currentTestAbort.abort();
+      currentTestAbort = null;
+    }
+  }
+
   /* ---------- registry แบบทดสอบ (7 แบบหลัก ตามหมวดผล 1-7) ---------- */
   const TESTS = [
     {
@@ -245,7 +258,8 @@ const App = (() => {
     if (state.running || Object.keys(state.results).length) {
       if (!confirm('ออกจากเซสชันปัจจุบัน? ข้อมูลที่กรอกและผลทดสอบจะหายทั้งหมด')) return;
     }
-    reset();
+    // Full reload = guaranteed clean state (like refresh)
+    window.location.reload();
   }
 
   /* ---------- จอฟอร์ม ---------- */
@@ -405,13 +419,22 @@ const App = (() => {
     document.getElementById('topbar').classList.remove('hidden');
 
     const queue = TESTS.filter((t) => state.selected.has(t.id));
+    const signal = startTestAbort();
+    
     for (let i = 0; i < queue.length; i++) {
       const t = queue[i];
       setTopbar(`แบบทดสอบ ${t.no}/7 — ${t.name}`, `${i + 1} / ${queue.length}`);
       try {
-        const res = await t.run(stageEl);
+        const res = await t.run(stageEl, { signal });
         Object.assign(state.results, res);
       } catch (err) {
+        if (err.name === 'AbortError') {
+          state.running = false;
+          T.releaseWakeLock();
+          T.exitFullscreen();
+          showHome();
+          return;
+        }
         console.error(err);
         if (!confirm(`เกิดข้อผิดพลาดใน "${t.name}"\n${err && err.message}\n\nOK = ข้ามไปแบบทดสอบถัดไป / Cancel = หยุดทั้งหมด`)) {
           state.running = false;
