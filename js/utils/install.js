@@ -22,31 +22,15 @@ let installBannerEl = null;
 let iosModalEl = null;
 let progressModalEl = null;
 let updateBannerEl = null;
-let userInteracted = false;
 let updateAvailable = false;
 
-// Track user interaction for install banner timing
-['click', 'scroll', 'touchstart', 'keydown'].forEach(e => 
-  window.addEventListener(e, () => { 
-    userInteracted = true; 
-    // If prompt was already captured and conditions met, show banner
-    if (deferredPrompt && shouldShowInstallBanner()) {
-      showInstallBanner();
-    }
-  }, { once: true, passive: true })
-);
-
 function shouldShowInstallBanner() {
-  // Don't show if:
-  if (isPWA) return false;                              // Already in standalone mode
+  // Don't show if already installed, in PWA mode, or in-app browser
+  if (isPWA) return false;
   if (matchMedia('(display-mode: standalone)').matches) return false;
-  if (navigator.serviceWorker.controller) return false; // SW already controlling
-  if (getState().installAccepted) return false;         // Already accepted install
+  if (isInAppBrowser) return false;
+  if (getState().installAccepted) return false;
   return true;
-}
-
-function hasUpdateAvailable() {
-  return updateAvailable;
 }
 
 export function initInstallDetection() {
@@ -59,8 +43,8 @@ export function initInstallDetection() {
     deferredPrompt = e;
     console.log('beforeinstallprompt captured');
     updateInstallButton();
-    // Show install banner after user interaction
-    if (shouldShowInstallBanner() && userInteracted) {
+    // Show install banner immediately (on every load until installed)
+    if (shouldShowInstallBanner()) {
       showInstallBanner();
     }
   });
@@ -70,8 +54,8 @@ export function initInstallDetection() {
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data?.type === 'CACHE_PROGRESS') {
         updateProgressModal(e.data.loaded, e.data.total, e.data.currentUrl);
-      } else if (e.data?.type === 'SW_UPDATE' || e.data?.type === 'SW_UPDATE_AVAILABLE') {
-        console.log('[install.js] SW_UPDATE received');
+      } else if (e.data?.type === 'SW_UPDATE_AVAILABLE') {
+        console.log('[install.js] SW_UPDATE_AVAILABLE received');
         updateAvailable = true;
         showUpdateBanner();
       }
@@ -81,7 +65,7 @@ export function initInstallDetection() {
       window.location.reload();
     });
 
-    // Periodic update check
+    // Periodic update check in background
     setInterval(() => {
       navigator.serviceWorker.ready.then(reg => reg.update());
     }, 30 * 60 * 1000);
@@ -94,7 +78,7 @@ export function initInstallDetection() {
     hideProgressModal();
   });
 
-  // Show iOS modal if needed
+  // Show iOS modal if needed (once per 7 days)
   if (isIOS && !getState().installAccepted) {
     const state = getState();
     const now = Date.now();
@@ -150,15 +134,11 @@ function hideUpdateBanner() {
   if (updateBannerEl) updateBannerEl.classList.remove('show');
 }
 
-/* ========== INSTALL BANNER (Bottom, Smart) ========== */
+/* ========== INSTALL BANNER (Bottom, Shows Every Load) ========== */
 export function showInstallBanner() {
-  // Smart detection: don't show if already installed, in PWA mode
+  // Show every load until installed
   if (!shouldShowInstallBanner()) {
-    console.log('[install.js] showInstallBanner skipped - conditions not met');
-    return;
-  }
-  if (!userInteracted) {
-    console.log('[install.js] showInstallBanner deferred - waiting for user interaction');
+    console.log('[install.js] showInstallBanner skipped - already installed or in PWA mode');
     return;
   }
 
@@ -199,7 +179,6 @@ export function showInstallBanner() {
     });
 
     installBannerEl.querySelector('#btn-install-later').addEventListener('click', () => {
-      // Don't set 24h cooldown - show again on next refresh until app is updated
       hideInstallUI();
     });
 
