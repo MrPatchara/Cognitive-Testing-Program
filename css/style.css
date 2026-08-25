@@ -494,7 +494,9 @@ button { font-family: inherit; }
   background: #FFFDF5; border: 2.5px solid #222; color: #111;
   font-size: clamp(.85rem, 2.6vmin, 1.3rem); font-weight: 800;
   display: grid; place-items: center; cursor: pointer; padding: 0;
+  transition: none;
 }
+.tmt-node:active { transform: translate(-50%, -50%); }
 .tmt-node.hit { background: #EF4444; border-color: #991B1B; color: #fff; opacity: .85; }
 .tmt-node.err { animation: shake .3s; border-color: #DC2626; box-shadow: 0 0 0 4px rgba(220,38,38,.35); }
 @keyframes shake {
