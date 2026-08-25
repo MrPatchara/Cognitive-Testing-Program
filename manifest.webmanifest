@@ -1,6 +1,6 @@
 {
-  "name": "CTB — ชุดประเมินสมรรถภาพทางสมอง",
-  "short_name": "CTB",
+  "name": "Brain Test — ชุดประเมินสมรรถภาพทางสมอง",
+  "short_name": "Brain Test",
   "description": "Computerized Cognitive Test Battery — 10 แบบทดสอบ เทียบเกณฑ์กรมพลศึกษา",
   "lang": "th",
   "start_url": "./index.html",
