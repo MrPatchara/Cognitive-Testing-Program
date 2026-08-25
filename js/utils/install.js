@@ -27,7 +27,13 @@ let updateAvailable = false;
 
 // Track user interaction for install banner timing
 ['click', 'scroll', 'touchstart', 'keydown'].forEach(e => 
-  window.addEventListener(e, () => { userInteracted = true; }, { once: true, passive: true })
+  window.addEventListener(e, () => { 
+    userInteracted = true; 
+    // If prompt was already captured and conditions met, show banner
+    if (deferredPrompt && shouldShowInstallBanner()) {
+      showInstallBanner();
+    }
+  }, { once: true, passive: true })
 );
 
 function shouldShowInstallBanner() {
@@ -146,13 +152,9 @@ function hideUpdateBanner() {
 
 /* ========== INSTALL BANNER (Bottom, Smart) ========== */
 export function showInstallBanner() {
-  // Smart detection: don't show if already installed, in PWA mode, or no update available
+  // Smart detection: don't show if already installed, in PWA mode
   if (!shouldShowInstallBanner()) {
     console.log('[install.js] showInstallBanner skipped - conditions not met');
-    return;
-  }
-  if (!hasUpdateAvailable()) {
-    console.log('[install.js] showInstallBanner skipped - no update available');
     return;
   }
   if (!userInteracted) {
