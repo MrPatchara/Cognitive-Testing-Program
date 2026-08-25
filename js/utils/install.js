@@ -21,7 +21,6 @@ let iosModalEl = null;
 let progressModalEl = null;
 
 export function initInstallDetection() {
-  if (typeof window !== 'undefined') window.initInstallDetection = initInstallDetection;
   if (isPWA || isInAppBrowser) return;
 
   // Listen for beforeinstallprompt (Android/Chrome/Edge)
@@ -111,7 +110,7 @@ export function showIOSInstallModal() {
   iosModalEl.innerHTML = `
     <div class="ios-modal-card">
       <div class="ios-modal-header">
-        <h3>ติดตั้ง Brain Test</h3>
+        <h3 id="ios-modal-title">ติดตั้ง Brain Test</h3>
       </div>
       <div class="ios-modal-body">
         <div class="ios-guide">
@@ -167,7 +166,7 @@ export function updateProgressModal(loaded, total, currentUrl) {
     progressModalEl.innerHTML = `
       <div class="progress-modal-card">
         <div class="progress-header">
-          <h3>กำลังเตรียมข้อมูล...</h3>
+          <h3 id="progress-modal-title">กำลังเตรียมข้อมูล...</h3>
         </div>
         <div class="progress-body">
           <div class="progress-bar-wrap">
