@@ -71,9 +71,6 @@ const App = (() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
-    if (typeof window.initInstallDetection === 'function') {
-      window.initInstallDetection();
-    }
     showHome();
   }
 

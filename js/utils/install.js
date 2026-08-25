@@ -1,6 +1,8 @@
 /* js/utils/install.js — Install prompt manager */
 import { isIOS, isAndroid, isPWA, isInAppBrowser } from './platform.js';
 
+console.log('[install.js] Module loaded');
+
 const STORAGE_KEY = 'bt_install_state';
 
 function getState() {
@@ -21,15 +23,20 @@ let iosModalEl = null;
 let progressModalEl = null;
 
 export function initInstallDetection() {
+  console.log('[install.js] initInstallDetection called');
   if (isPWA || isInAppBrowser) return;
 
-  // Listen for beforeinstallprompt (Android/Chrome/Edge)
+  // Show banner IMMEDIATELY (synchronously) on EVERY page load
+  // The DOM elements exist in HTML, so no need to wait
+  showInstallBanner();
+  console.log('[install.js] showInstallBanner called synchronously');
+
+  // Listen for beforeinstallprompt (Android/Chrome/Edge) - capture for native prompt
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    if (!getState().installAccepted) {
-      showInstallBanner();
-    }
+    console.log('beforeinstallprompt captured');
+    updateInstallButton();
   });
 
   // Listen for SW messages
@@ -62,43 +69,89 @@ export function initInstallDetection() {
       setTimeout(() => showIOSInstallModal(), 2000);
     }
   }
+  if (typeof window !== 'undefined') {
+    window.initInstallDetection = initInstallDetection;
+    console.log('[install.js] Assigned to window');
+  }
+}
+
+// Auto-initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initInstallDetection);
+} else {
+  initInstallDetection();
 }
 
 export function showInstallBanner() {
-  if (getState().installAccepted) return;
-  const state = getState();
-  const now = Date.now();
-  if (state.installDismissed && now - state.installDismissed < 24 * 60 * 60 * 1000) return;
+  if (getState().installAccepted) {
+    console.log('[install.js] showInstallBanner skipped - installAccepted=true');
+    return;
+  }
 
-  installBannerEl = document.getElementById('install-banner');
-  if (!installBannerEl) return;
-
-  installBannerEl.innerHTML = `
-    <div class="install-banner-content">
-      <span>ติดตั้ง Brain Test ลงหน้าจอหลัก</span>
-      <div class="install-banner-actions">
-        <button class="btn btn-gold btn-sm" id="btn-install-now">ติดตั้ง</button>
-        <button class="btn btn-ghost btn-sm" id="btn-install-later">ภายหลัง</button>
-      </div>
-    </div>
-  `;
-
-  installBannerEl.querySelector('#btn-install-now').addEventListener('click', async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        deferredPrompt = null;
-      }
+  const tryShow = () => {
+    installBannerEl = document.getElementById('install-banner');
+    if (!installBannerEl) {
+      console.warn('[install.js] install-banner NOT found, retrying...');
+      requestAnimationFrame(tryShow);
+      return;
     }
-  });
+    console.log('[install.js] showInstallBanner - element found, showing banner');
 
-  installBannerEl.querySelector('#btn-install-later').addEventListener('click', () => {
-    setState({ installDismissed: Date.now() });
-    hideInstallUI();
-  });
+    installBannerEl.innerHTML = `
+      <div class="install-banner-content">
+        <span>ติดตั้ง Brain Test ลงหน้าจอหลัก</span>
+        <div class="install-banner-actions">
+          <button class="btn btn-gold btn-sm" id="btn-install-now">ติดตั้ง</button>
+          <button class="btn btn-ghost btn-sm" id="btn-install-later">ภายหลัง</button>
+        </div>
+      </div>
+    `;
 
-  requestAnimationFrame(() => installBannerEl.classList.add('show'));
+    installBannerEl.querySelector('#btn-install-now').addEventListener('click', async () => {
+      console.log('Install clicked, deferredPrompt:', deferredPrompt);
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log('Install outcome:', outcome);
+        if (outcome === 'accepted') {
+          deferredPrompt = null;
+          updateInstallButton();
+        }
+      } else {
+        console.log('No deferredPrompt available');
+        alert('กรุณาใช้เมนูเบราว์เซอร์ ⋮ > "ติดตั้ง Brain Test" หรือ "Install Brain Test"');
+      }
+    });
+
+    installBannerEl.querySelector('#btn-install-later').addEventListener('click', () => {
+      hideInstallUI();
+    });
+
+    updateInstallButton();
+    requestAnimationFrame(() => {
+      installBannerEl.classList.add('show');
+      console.log('[install.js] banner .show class added');
+    });
+  };
+
+  // DOM might not be ready on fast cached loads
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryShow);
+  } else {
+    tryShow();
+  }
+}
+
+function updateInstallButton() {
+  const btn = document.getElementById('btn-install-now');
+  if (!btn) return;
+  if (deferredPrompt) {
+    btn.textContent = 'ติดตั้ง';
+    btn.title = 'เปิดหน้าต่างติดตั้งของเบราว์เซอร์';
+  } else {
+    btn.textContent = 'ติดตั้ง (เมนูเบราว์เซอร์)';
+    btn.title = 'กดแล้วแจ้งวิธีติดตั้งด้วยตนเอง';
+  }
 }
 
 export function showIOSInstallModal() {
