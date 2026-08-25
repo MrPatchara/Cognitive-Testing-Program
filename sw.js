@@ -1,7 +1,7 @@
 /* sw.js — Service Worker: cache offline (cache-first) */
 'use strict';
 
-const CACHE = 'ctb-web-v26';
+const CACHE = 'ctb-web-v27';
 const CORE = [
   './',
   './index.html',
@@ -26,7 +26,9 @@ const CORE = [
   './manifest.webmanifest',
   './assets/pic1.png',
   './assets/main_video.mp4',
-  './assets/logo_dpe.svg'
+  './assets/logo_dpe.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
 ];
 
 self.addEventListener('install', (e) => {
