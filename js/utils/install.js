@@ -1,4 +1,4 @@
-/* js/utils/install.js — Install prompt manager */
+/* js/utils/install.js — Install prompt manager + Update banner */
 import { isIOS, isAndroid, isPWA, isInAppBrowser } from './platform.js';
 
 console.log('[install.js] Module loaded');
@@ -21,15 +21,31 @@ let deferredPrompt = null;
 let installBannerEl = null;
 let iosModalEl = null;
 let progressModalEl = null;
+let updateBannerEl = null;
+let userInteracted = false;
+let updateAvailable = false;
+
+// Track user interaction for install banner timing
+['click', 'scroll', 'touchstart', 'keydown'].forEach(e => 
+  window.addEventListener(e, () => { userInteracted = true; }, { once: true, passive: true })
+);
+
+function shouldShowInstallBanner() {
+  // Don't show if:
+  if (isPWA) return false;                              // Already in standalone mode
+  if (matchMedia('(display-mode: standalone)').matches) return false;
+  if (navigator.serviceWorker.controller) return false; // SW already controlling
+  if (getState().installAccepted) return false;         // Already accepted install
+  return true;
+}
+
+function hasUpdateAvailable() {
+  return updateAvailable;
+}
 
 export function initInstallDetection() {
   console.log('[install.js] initInstallDetection called');
   if (isPWA || isInAppBrowser) return;
-
-  // Show banner IMMEDIATELY (synchronously) on EVERY page load
-  // The DOM elements exist in HTML, so no need to wait
-  showInstallBanner();
-  console.log('[install.js] showInstallBanner called synchronously');
 
   // Listen for beforeinstallprompt (Android/Chrome/Edge) - capture for native prompt
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -37,6 +53,10 @@ export function initInstallDetection() {
     deferredPrompt = e;
     console.log('beforeinstallprompt captured');
     updateInstallButton();
+    // Show install banner after user interaction
+    if (shouldShowInstallBanner() && userInteracted) {
+      showInstallBanner();
+    }
   });
 
   // Listen for SW messages
@@ -44,14 +64,21 @@ export function initInstallDetection() {
     navigator.serviceWorker.addEventListener('message', (e) => {
       if (e.data?.type === 'CACHE_PROGRESS') {
         updateProgressModal(e.data.loaded, e.data.total, e.data.currentUrl);
-      } else if (e.data?.type === 'SW_UPDATE') {
-        showUpdateToast();
+      } else if (e.data?.type === 'SW_UPDATE' || e.data?.type === 'SW_UPDATE_AVAILABLE') {
+        console.log('[install.js] SW_UPDATE received');
+        updateAvailable = true;
+        showUpdateBanner();
       }
     });
 
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       window.location.reload();
     });
+
+    // Periodic update check
+    setInterval(() => {
+      navigator.serviceWorker.ready.then(reg => reg.update());
+    }, 30 * 60 * 1000);
   }
 
   // App installed detection
@@ -82,9 +109,54 @@ if (document.readyState === 'loading') {
   initInstallDetection();
 }
 
+/* ========== UPDATE BANNER (Top, Persistent) ========== */
+function showUpdateBanner() {
+  updateBannerEl = document.getElementById('update-banner');
+  if (!updateBannerEl) {
+    console.warn('[install.js] update-banner element not found');
+    return;
+  }
+
+  updateBannerEl.innerHTML = `
+    <div class="update-banner-content">
+      <span>🔄 มีอัปเดตใหม่ พร้อมใช้งาน</span>
+      <div class="update-banner-actions">
+        <button class="btn btn-gold btn-sm" id="btn-update-reload">รีโหลดตอนนี้</button>
+        <button class="btn btn-ghost btn-sm" id="btn-update-later">ภายหลัง</button>
+      </div>
+    </div>
+  `;
+
+  updateBannerEl.querySelector('#btn-update-reload').addEventListener('click', () => {
+    window.location.reload();
+  });
+
+  updateBannerEl.querySelector('#btn-update-later').addEventListener('click', () => {
+    hideUpdateBanner();
+    // Dismiss for 24 hours
+    setState({ updateDismissed: Date.now() });
+  });
+
+  requestAnimationFrame(() => updateBannerEl.classList.add('show'));
+}
+
+function hideUpdateBanner() {
+  if (updateBannerEl) updateBannerEl.classList.remove('show');
+}
+
+/* ========== INSTALL BANNER (Bottom, Smart) ========== */
 export function showInstallBanner() {
-  if (getState().installAccepted) {
-    console.log('[install.js] showInstallBanner skipped - installAccepted=true');
+  // Smart detection: don't show if already installed, in PWA mode, or no update available
+  if (!shouldShowInstallBanner()) {
+    console.log('[install.js] showInstallBanner skipped - conditions not met');
+    return;
+  }
+  if (!hasUpdateAvailable()) {
+    console.log('[install.js] showInstallBanner skipped - no update available');
+    return;
+  }
+  if (!userInteracted) {
+    console.log('[install.js] showInstallBanner deferred - waiting for user interaction');
     return;
   }
 
@@ -115,7 +187,8 @@ export function showInstallBanner() {
         console.log('Install outcome:', outcome);
         if (outcome === 'accepted') {
           deferredPrompt = null;
-          updateInstallButton();
+          setState({ installAccepted: true });
+          hideInstallUI();
         }
       } else {
         console.log('No deferredPrompt available');
@@ -124,6 +197,7 @@ export function showInstallBanner() {
     });
 
     installBannerEl.querySelector('#btn-install-later').addEventListener('click', () => {
+      // Don't set 24h cooldown - show again on next refresh until app is updated
       hideInstallUI();
     });
 
@@ -134,7 +208,6 @@ export function showInstallBanner() {
     });
   };
 
-  // DOM might not be ready on fast cached loads
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', tryShow);
   } else {
@@ -208,6 +281,7 @@ export function hideIOSModal() {
   if (iosModalEl) iosModalEl.classList.remove('show');
 }
 
+/* ========== PROGRESS MODAL (Unchanged) ========== */
 export function updateProgressModal(loaded, total, currentUrl) {
   progressModalEl = document.getElementById('progress-modal');
   if (!progressModalEl) return;
@@ -252,20 +326,4 @@ export function hideProgressModal() {
     progressModalEl.classList.remove('show');
     setTimeout(() => { progressModalEl.innerHTML = ''; }, 300);
   }
-}
-
-function showUpdateToast() {
-  let toast = document.getElementById('update-toast');
-  if (!toast) return;
-
-  toast.innerHTML = `
-    <span>มีอัปเดตใหม่ พร้อมใช้งาน</span>
-    <button class="btn btn-gold btn-sm" id="btn-reload-now">โหลดใหม่</button>
-  `;
-
-  toast.querySelector('#btn-reload-now').addEventListener('click', () => {
-    window.location.reload();
-  });
-
-  requestAnimationFrame(() => toast.classList.add('show'));
 }
