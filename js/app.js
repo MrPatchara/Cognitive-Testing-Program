@@ -218,7 +218,7 @@ const App = (() => {
           <span class="ab-ct"><small>GitHub</small><a href="https://github.com/MrPatchara" target="_blank" rel="noopener">github.com/MrPatchara</a></span>
         </div>
         <div class="about-disclaimer">
-          ⚠ โปรแกรมนี้จัดทำขึ้นเพื่อวัตถุประสงค์ทางการศึกษา <br> และความสนุกส่วนตัวเท่านั้น<br>
+          ⚠ โปรแกรมนี้จัดทำขึ้นเพื่อวัตถุประสงค์ทางการศึกษา <br><br>
           ไม่มีเจตนาละเมิดลิขสิทธิ์หรือทรัพย์สินทางปัญญา <br> ของบุคคลหรือองค์กรใด ๆ ทั้งสิ้น
         </div>
       </div>`;
