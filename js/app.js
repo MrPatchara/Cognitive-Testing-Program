@@ -30,28 +30,28 @@ const App = (() => {
   /* ---------- registry แบบทดสอบ (7 แบบหลัก ตามหมวดผล 1-7) ---------- */
   const TESTS = [
     {
-      id: 'srt', no: 1, name: 'SRT — เวลาปฏิกิริยาอย่างง่าย',
-      domain: 'ความเร็วในการประมวลผล', run: (s) => runSRT(s)
+      id: 'srt', no: 1, name: 'SRT — Simple Reaction Time',
+      domain: 'เวลาปฏิกิริยาอย่างง่าย', run: (s) => runSRT(s)
     },
     {
-      id: 'crt', no: 2, name: 'CRT — เวลาปฏิกิริยาแบบตัวเลือก',
-      domain: 'ความเร็ว + การยับยั้ง', run: (s) => runCRT(s)
+      id: 'crt', no: 2, name: 'CRT — Choice Reaction Time',
+      domain: 'เวลาปฏิกิริยาแบบตัวเลือก', run: (s) => runCRT(s)
     },
     {
-      id: 'tmt', no: 3, name: 'TMT — เทรลเมคกิ้ง (A และ B)',
-      domain: 'ความเร็ว + ความยืดหยุ่นเชิงปฏิบัติ',
+      id: 'tmt', no: 3, name: 'TMT — Trail Making',
+      domain: 'ความเร็ว + ความยืดหยุ่น',
       run: async (s) => ({
         ...(await runTMT(s, { variant: 'A' })),
         ...(await runTMT(s, { variant: 'B' }))
       })
     },
     {
-      id: 'flanker', no: 4, name: 'Flanker — แฟลงเกอร์',
+      id: 'flanker', no: 4, name: 'FKT — Flanker',
       domain: 'การยับยั้ง / ความสนใจ', run: (s) => runFlanker(s)
     },
     {
       id: 'dft', no: 5, name: 'DFT — Design Fluency',
-      domain: 'ความคล่องแคล่วเชิงออกแบบ',
+      domain: 'การออกแบบภาพที่ไม่ซํ้ากัน',
       run: async (s) => {
         const r1 = await runDF(s, { variant: 'filled' });
         const r2 = await runDF(s, { variant: 'empty' });
@@ -60,12 +60,12 @@ const App = (() => {
       }
     },
     {
-      id: 'mrt', no: 6, name: 'MRT — การหมุนภาพในใจ',
-      domain: 'มิติสัมพันธ์', run: (s) => runMRT(s)
+      id: 'mrt', no: 6, name: 'MRT — Mental Rotation',
+      domain: 'การหมุนภาพในใจ', run: (s) => runMRT(s)
     },
     {
-      id: 'svt', no: 7, name: 'SVT — มิติสัมพันธ์เชิงพื้นที่',
-      domain: 'การมองเห็นเชิงพื้นที่', run: (s) => runSVT(s)
+      id: 'svt', no: 7, name: 'SVT — Spatial Visualization',
+      domain: 'มิติสัมพันธ์เชิงพื้นที่', run: (s) => runSVT(s)
     }
   ];
 
@@ -116,7 +116,7 @@ const App = (() => {
           <div class="hl-pill hl-glass hl-links-desktop">
             <a href="#" class="is-active" data-nav="home">หน้าแรก</a>
             <a href="#" data-nav="start">เริ่มการทดสอบ</a>
-            <a href="#" data-nav="about">เกี่ยวกับเรา</a>
+            <a href="#" data-nav="about">ผู้จัดทำ</a>
           </div>
           <button id="hl-burger" class="hl-user hl-glass hl-only-mobile" aria-label="เมนู" aria-expanded="false">
             <span class="hl-burger-icons">${IC_MENU}${IC_CLOSE}</span>
@@ -126,7 +126,7 @@ const App = (() => {
         <div id="hl-menu" class="hl-menu">
           <a href="#" data-nav="home">หน้าแรก</a>
           <a href="#" data-nav="start">เริ่มการทดสอบ</a>
-          <a href="#" data-nav="about">เกี่ยวกับเรา</a>
+          <a href="#" data-nav="about">ผู้จัดทำ</a>
         </div>
 
         <main class="hl-main" id="hl-main">
@@ -270,7 +270,7 @@ const App = (() => {
         <h2>ข้อมูลนักกีฬา <span class="muted small">*กรุณากรอกข้อมูลให้ครบถ้วน</span></h2>
         <div class="form-grid">
           <label class="full">ชื่อ–นามสกุล *
-            <input id="f-name" type="text" placeholder="เช่น สมชาย ใจเก่ง" autocomplete="off">
+            <input id="f-name" type="text" placeholder="เช่น พัชระ อัลอุมารี" autocomplete="off">
           </label>
           <label>วันเกิด *
             <input id="f-dob" type="date">
@@ -295,13 +295,13 @@ const App = (() => {
             <input id="f-sport" type="text" placeholder="เช่น ฟุตบอล" autocomplete="off">
           </label>
           <div class="form-row">
-            <label>ประสบการณ์ (ปี)
-              <input id="f-exp" type="number" min="0" max="60" placeholder="0">
+            <label>ประสบการณ์
+              <input id="f-exp" type="number" min="0" max="60" placeholder="ปี" autocomplete="off">
             </label>
-            <label>วันซ้อม / สัปดาห์
+            <label>ซ้อม / สัปดาห์
               <select id="f-days"><option value=""></option>${[1,2,3,4,5,6,7].map((n) => `<option>${n}</option>`).join('')}</select>
             </label>
-            <label>ชั่วโมงซ้อม / วัน
+            <label>ชม.ซ้อม / วัน
               <select id="f-hours"><option value=""></option>${[1,2,3,4,5,6,7,8].map((n) => `<option>${n}</option>`).join('')}</select>
             </label>
           </div>
@@ -321,7 +321,7 @@ const App = (() => {
         <div id="norm-preview" class="norm-preview hidden"></div>
         <div class="form-actions">
           <button id="f-back" class="btn btn-ghost">← ย้อนกลับ</button>
-          <button id="f-next" class="btn btn-primary btn-lg">ถัดไป: เลือกแบบทดสอบ</button>
+          <button id="f-next" class="btn btn-primary btn-lg">ถัดไป →</button>
         </div>
       </div>`;
 
@@ -391,10 +391,10 @@ const App = (() => {
               <span class="ck-domain">${esc(t.domain)}</span>
             </label>`).join('')}
         </div>
-        <p class="muted small">หมายเหตุ: คะแนนรวม (หมวด 8) จะแม่นยำเมื่อทดสอบครบทุกแบบ — ตัวชี้วัดที่ไม่ได้ทดสอบจะแสดง N/A</p>
+        <p class="muted small">หมายเหตุ : คะแนนรวม จะถูกต้องเมื่อทดสอบครบ <br> ตัวชี้วัดที่ไม่ได้ทดสอบจะแสดง N/A</p>
         <div class="form-actions">
           <button id="ck-back" class="btn btn-ghost">ย้อนกลับ</button>
-          <button id="ck-go" class="btn btn-primary btn-lg">เริ่มการทดสอบ<span class="arr">→</span></button>
+          <button id="ck-go" class="btn btn-primary btn-lg">เริ่มทดสอบ<span class="arr">→</span></button>
         </div>
       </div>`;
 
