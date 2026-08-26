@@ -539,14 +539,14 @@ button { font-family: inherit; }
   width: clamp(30px, 7vmin, 42px); height: clamp(30px, 7vmin, 42px);
   background: transparent; border: none; padding: 0; cursor: pointer;
   display: grid; place-items: center; z-index: 2; touch-action: manipulation;
+  transition: none;
 }
+.df-dot5:active { transform: translate(-50%, -50%); }
 .df-dot5::before {
   content: ''; width: clamp(11px, 2.6vmin, 17px); height: clamp(11px, 2.6vmin, 17px);
   border-radius: 50%; border: 2px solid #111; background: transparent;
-  transition: transform .1s;
 }
 .df-dot5.is-filled::before { background: #111; }
-.df-dot5:active::before { transform: scale(1.3); }
 .df-nav {
   position: absolute; left: 0; right: 0; bottom: 0;
   display: flex; align-items: center; justify-content: center; gap: 8px; row-gap: 6px;
