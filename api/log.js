@@ -5,27 +5,6 @@
 
 const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
 
-// Parse body - Vercel may not auto-parse in all runtimes
-function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', chunk => {
-      body += chunk.toString('utf8');
-    });
-    req.on('end', () => {
-      try {
-        const parsed = body ? JSON.parse(body) : {};
-        console.log('Parsed body:', parsed);
-        resolve(parsed);
-      } catch (e) {
-        console.error('JSON parse error:', e, 'raw:', body);
-        resolve({});
-      }
-    });
-    req.on('error', reject);
-  });
-}
-
 module.exports = async (req, res) => {
   // CORS headers for browser
   res.setHeader('Access-Control-Allow-Origin', 'https://www.cognitivetesting.me');
@@ -47,10 +26,27 @@ module.exports = async (req, res) => {
     return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not configured' });
   }
 
-  // Parse body manually
-  const payload = await parseBody(req);
+  // Try req.body first (Vercel Node.js runtime auto-parses JSON)
+  let payload = req.body;
   
-  console.log('Parsed payload:', JSON.stringify(payload));
+  // If req.body is not parsed, try to parse manually
+  if (!payload || typeof payload !== 'object') {
+    try {
+      // Read raw body for manual parsing
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+      const body = Buffer.concat(chunks).toString('utf8');
+      console.log('Raw body:', body);
+      payload = body ? JSON.parse(body) : {};
+    } catch (e) {
+      console.error('Manual parse error:', e);
+      payload = {};
+    }
+  }
+  
+  console.log('Final payload:', JSON.stringify(payload));
   console.log('Has action:', payload && 'action' in payload);
 
   // Validate required fields
