@@ -266,27 +266,6 @@ const App = (() => {
   })();
 
   /* ---------- Test Abort Controller ---------- */
-      updateSyncBadge('offline');
-    });
-
-    // Init on load
-    loadPendingQueue();
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        initSyncBadge();
-        fetchIP();
-        processQueue();
-      });
-    } else {
-      initSyncBadge();
-      fetchIP();
-      processQueue();
-    }
-
-    return {
-      createSession,
-      updateSession,
-      finalizeSession,
       abandonSession,
       getRowId: () => rowId,
       getSessionId: () => sessionId
