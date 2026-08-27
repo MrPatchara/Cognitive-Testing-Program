@@ -1,5 +1,14 @@
 const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
 
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', 'https://www.cognitivetesting.me');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -11,7 +20,15 @@ module.exports = async (req, res) => {
 
   if (!GAS_WEBHOOK_URL) return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not set' });
 
-  const payload = req.body;
+  let payload = req.body;
+  if (!payload || typeof payload !== 'object' || Object.keys(payload).length === 0) {
+    try {
+      const raw = await readBody(req);
+      if (raw) payload = JSON.parse(raw);
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: 'Bad JSON body' });
+    }
+  }
 
   if (!payload || !payload.action) {
     return res.status(400).json({ ok: false, error: 'Missing action' });
