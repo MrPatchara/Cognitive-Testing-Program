@@ -14,9 +14,10 @@ const App = (() => {
     running: false
   };
 
-  /* ---------- Logging to Google Sheets ---------- */
+  /* ---------- Logging to Google Sheets (via Vercel Proxy) ---------- */
   const Log = (() => {
-    const WEBHOOK_URL = (window.CTB_CONFIG && window.CTB_CONFIG.webhookUrl) || '';
+    // Use relative URL to Vercel API route (no CORS issue)
+    const PROXY_URL = '/api/log';
     const APP_VERSION = (window.CTB_CONFIG && window.CTB_CONFIG.appVersion) || '1.0.0';
     let sessionId = null;
     let rowId = null;
@@ -77,14 +78,10 @@ const App = (() => {
       processQueue();
     }
 
-    async function sendToGAS(payload) {
-      if (!WEBHOOK_URL) {
-        throw new Error('Webhook URL not configured');
-      }
-      // Use text/plain to avoid CORS preflight (GAS doesn't handle OPTIONS)
-      const res = await fetch(WEBHOOK_URL, {
+    async function sendToProxy(payload) {
+      const res = await fetch(PROXY_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (!res.ok) {
@@ -104,9 +101,8 @@ const App = (() => {
       
       const item = pendingUpdates[0];
       try {
-        const result = await sendToGAS(item.payload);
+        const result = await sendToProxy(item.payload);
         if (result.ok) {
-          // If create action, store rowId
           if (item.payload.action === 'create' && result.rowId) {
             rowId = result.rowId;
             sessionId = result.sessionId || sessionId;
@@ -114,7 +110,6 @@ const App = (() => {
           pendingUpdates.shift();
           savePendingQueue();
           updateSyncBadge('synced');
-          // Continue processing
           if (pendingUpdates.length > 0) {
             setTimeout(processQueue, 100);
           }
@@ -125,10 +120,8 @@ const App = (() => {
         console.warn('Log send failed:', e);
         item.retries++;
         if (item.retries >= 5) {
-          // Max retries reached, keep in queue but mark error
           updateSyncBadge('error');
         } else {
-          // Exponential backoff
           const delay = Math.min(1000 * Math.pow(2, item.retries), 30000);
           updateSyncBadge('error');
           setTimeout(() => {
@@ -165,7 +158,6 @@ const App = (() => {
       ev.rows.forEach(r => {
         if (r.key && r.value != null) summary[r.key] = r.value;
       });
-      // Add total score
       if (ev.totalScore != null) summary.Total_Norm_Score = ev.totalScore;
       if (ev.totalLevel != null) summary.Total_Level = ev.totalLevel;
       
@@ -241,13 +233,39 @@ const App = (() => {
       queueUpdate(payload);
     }
 
-    // Online/offline detection
     window.addEventListener('online', () => {
       isOnline = true;
       processQueue();
     });
     window.addEventListener('offline', () => {
       isOnline = false;
+      updateSyncBadge('offline');
+    });
+
+    loadPendingQueue();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        initSyncBadge();
+        fetchIP();
+        processQueue();
+      });
+    } else {
+      initSyncBadge();
+      fetchIP();
+      processQueue();
+    }
+
+    return {
+      createSession,
+      updateSession,
+      finalizeSession,
+      abandonSession,
+      getRowId: () => rowId,
+      getSessionId: () => sessionId
+    };
+  })();
+
+  /* ---------- Test Abort Controller ---------- */
       updateSyncBadge('offline');
     });
 
