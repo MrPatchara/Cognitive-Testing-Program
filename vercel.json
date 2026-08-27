@@ -4,11 +4,6 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": null,
-  "functions": {
-    "api/log.js": {
-      "runtime": "@vercel/edge@1.3.3"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
