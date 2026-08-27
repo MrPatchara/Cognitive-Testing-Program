@@ -1,10 +1,26 @@
 /* ============================================================
  * api/log.js — Vercel Serverless Function: Proxy to GAS
  * Server-to-server = ไม่มี CORS issue
- * Vercel auto-parses JSON body into req.body
  * ============================================================ */
 
 const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
+
+// Parse body manually for Vercel Node.js runtime
+function getBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => {
+      try {
+        const body = Buffer.concat(chunks).toString('utf8');
+        resolve(body ? JSON.parse(body) : {});
+      } catch (e) {
+        resolve({}); // Return empty object on parse error
+      }
+    });
+    req.on('error', reject);
+  });
+}
 
 module.exports = async (req, res) => {
   // CORS headers for browser
@@ -27,8 +43,8 @@ module.exports = async (req, res) => {
     return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not configured' });
   }
 
-  // Vercel auto-parses JSON body
-  const payload = req.body;
+  // Parse body manually (Vercel Node.js runtime may not auto-parse)
+  const payload = await getBody(req);
   
   console.log('Proxy received:', JSON.stringify(payload));
 
