@@ -5,6 +5,22 @@
 
 const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
 
+// Simple body parser for Vercel
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 module.exports = async (req, res) => {
   // CORS headers for browser
   res.setHeader('Access-Control-Allow-Origin', 'https://www.cognitivetesting.me');
@@ -26,11 +42,20 @@ module.exports = async (req, res) => {
     return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not configured' });
   }
 
+  // Parse body
+  let payload;
+  try {
+    payload = await parseBody(req);
+  } catch (e) {
+    console.error('Body parse error:', e);
+    return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
+  }
+
   // Log incoming request for debugging
   console.log('Proxy received request:', {
     method: req.method,
     headers: req.headers,
-    body: req.body
+    body: payload
   });
 
   try {
@@ -38,7 +63,7 @@ module.exports = async (req, res) => {
     const gasRes = await fetch(GAS_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify(payload)
     });
 
     console.log('GAS response status:', gasRes.status);
