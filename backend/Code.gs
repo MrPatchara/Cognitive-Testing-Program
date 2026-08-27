@@ -13,7 +13,7 @@ const CONFIG = {
     DAY_MS: 24 * 60 * 60 * 1000
   },
   REQUIRED_FIELDS: ['name', 'dob', 'gender', 'education', 'groupName'],
-  CORS_ORIGIN: '*'  // หรือใส่ domain จริง เช่น 'https://your-site.netlify.app'
+  CORS_ORIGIN: 'https://www.cognitivetesting.me'
 };
 
 const HEADERS = [
