@@ -13,9 +13,11 @@ function getBody(req) {
     req.on('end', () => {
       try {
         const body = Buffer.concat(chunks).toString('utf8');
+        console.log('Raw body:', body);
         resolve(body ? JSON.parse(body) : {});
       } catch (e) {
-        resolve({}); // Return empty object on parse error
+        console.error('JSON parse error:', e);
+        resolve({});
       }
     });
     req.on('error', reject);
@@ -46,7 +48,10 @@ module.exports = async (req, res) => {
   // Parse body manually (Vercel Node.js runtime may not auto-parse)
   const payload = await getBody(req);
   
-  console.log('Proxy received:', JSON.stringify(payload));
+  console.log('Parsed payload:', JSON.stringify(payload));
+  console.log('Payload keys:', Object.keys(payload));
+  console.log('Has action:', 'action' in payload);
+  console.log('Action value:', payload.action);
 
   // Validate required fields
   if (!payload || !payload.action) {
