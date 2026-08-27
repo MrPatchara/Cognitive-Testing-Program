@@ -594,11 +594,6 @@ function buildSummary(extraResults = {}) {
               <option>หญิง ม.4-6</option>
             </select>
           </label>
-          <!-- Consent checkbox for PDPA compliance -->
-          <label class="full consent-label">
-            <input type="checkbox" id="f-consent" required>
-            <span>ยินยอมให้เก็บข้อมูล IP, อุปกรณ์ และผลการทดสอบ เพื่อบันทึกลง Google Sheets (ไม่เผยแพร่ต่อบุคคลที่ 3)</span>
-          </label>
           <!-- Honeypot field (hidden from users, filled by bots) -->
           <input type="text" name="website" id="f-honeypot" tabindex="-1" autocomplete="off" 
                  style="display:none!important;position:absolute;left:-9999px" aria-hidden="true">
@@ -636,13 +631,11 @@ function buildSummary(extraResults = {}) {
       const dob = document.getElementById('f-dob').value;
       const gender = document.getElementById('f-gender').value;
       const edu = document.getElementById('f-edu').value;
-      const consent = document.getElementById('f-consent').checked;
       const honeypot = document.getElementById('f-honeypot').value;
       if (!name) return alert('กรุณากรอกชื่อ');
       if (!dob) return alert('กรุณาเลือกวันเกิด');
       if (!gender) return alert('กรุณาเลือกเพศ');
       if (!edu) return alert('กรุณาเลือกระดับการศึกษา');
-      if (!consent) return alert('กรุณายินยอมให้เก็บข้อมูลเพื่อดำเนินการต่อ');
       if (honeypot) return; // Bot detected, silently ignore
       state.athlete = {
         name, dob, gender,
