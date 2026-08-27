@@ -157,7 +157,7 @@ function handleCreate(sh, data, ip) {
   const now = new Date();
   
   // Use client-sent IP (from meta.ip) as fallback if header IP is unknown
-  const headerIp = getClientIP(e);
+  const headerIp = ip;
   const clientIp = data.meta?.ip || '';
   const finalIp = (headerIp && headerIp !== 'unknown') ? headerIp : clientIp;
   
@@ -369,15 +369,15 @@ function findRowById(sh, rowId) {
 
 /* ---------- CORS Helper ---------- */
 function corsResponse(data, status = 200) {
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({
-      'Access-Control-Allow-Origin': CONFIG.CORS_ORIGIN,
-      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Max-Age': '86400'
-    });
+  const output = ContentService.createTextOutput(JSON.stringify(data));
+  output.setMimeType('application/json');
+  output.setHeaders({
+    'Access-Control-Allow-Origin': CONFIG.CORS_ORIGIN,
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400'
+  });
+  return output;
 }
 
 /* ---------- Setup Helper (run once) ---------- */
