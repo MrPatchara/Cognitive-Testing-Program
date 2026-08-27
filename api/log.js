@@ -1,4 +1,4 @@
-const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwDmYVdZoCT4VFs2uvKUGETTFcFEOZbcR-gsQT8sk5WBbD3RjKKbbaL2B-4EKhrgwg1og/exec';
+const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxBNeoxFzt4JntTpfB2RjFOp5towjZuqEWV2XBxuyv1M0RcZSHOB9ztYVlY-238DbSaJw/exec';
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', 'https://www.cognitivetesting.me');
