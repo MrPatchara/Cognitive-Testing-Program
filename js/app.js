@@ -147,7 +147,32 @@ const App = (() => {
       };
     }
 
-    function buildSummary(extraResults = {}) {
+    // Map scoring keys to GAS norm level keys (strip Ms/Score suffixes)
+const NORM_LEVEL_KEY_MAP = {
+  'SRT_AvgMs': 'level_SRT_Avg',
+  'SRT_Acc': 'level_SRT_Acc',
+  'CRT_AvgMs': 'level_CRT_Avg',
+  'CRT_Acc': 'level_CRT_Acc',
+  'TMT_A_Time': 'level_TMT_A_Time',
+  'TMT_A_Err': 'level_TMT_A_Err',
+  'TMT_B_Time': 'level_TMT_B_Time',
+  'TMT_B_Err': 'level_TMT_B_Err',
+  'TMT_Diff': 'level_TMT_Diff',
+  'TMT_Ratio': 'level_TMT_Ratio',
+  'FLK_Cong_RT': 'level_FLK_Cong_RT',
+  'FLK_Cong_Acc': 'level_FLK_Cong_Acc',
+  'FLK_Incong_RT': 'level_FLK_Incong_RT',
+  'FLK_Incong_Acc': 'level_FLK_Incong_Acc',
+  'FLK_Interference': 'level_FLK_Interference',
+  'DF_Filled': 'level_DF_Filled',
+  'DF_Empty': 'level_DF_Empty',
+  'DF_Switching': 'level_DF_Switching',
+  'DF_Total': 'level_DF_Total',
+  'MRT_Score': 'level_MRT',
+  'SVT_Score': 'level_SVT'
+};
+
+function buildSummary(extraResults = {}) {
       const allResults = { ...state.results, ...extraResults };
       const values = Scoring.compute(allResults);
       const ev = state.groupName
@@ -164,7 +189,8 @@ const App = (() => {
       const normLevels = {};
       ev.rows.forEach(r => {
         if (r.key && r.level != null) {
-          normLevels['level_' + r.key.replace(/_/g, '_')] = r.level;
+          const gasKey = NORM_LEVEL_KEY_MAP[r.key];
+          if (gasKey) normLevels[gasKey] = r.level;
         }
       });
       

@@ -156,12 +156,17 @@ function handleCreate(sh, data, ip) {
   const rowId = sh.getLastRow() + 1; // 1-indexed, header is row 1
   const now = new Date();
   
+  // Use client-sent IP (from meta.ip) as fallback if header IP is unknown
+  const headerIp = getClientIP(e);
+  const clientIp = data.meta?.ip || '';
+  const finalIp = (headerIp && headerIp !== 'unknown') ? headerIp : clientIp;
+  
   const row = buildRow({
     sessionId,
     rowId,
     status: 'started',
     meta: data.meta,
-    ip,
+    ip: finalIp,
     summary: data.summary || {},
     raw: data.raw || {},
     normLevels: data.normLevels || {},
