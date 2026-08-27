@@ -266,13 +266,6 @@ const App = (() => {
   })();
 
   /* ---------- Test Abort Controller ---------- */
-      abandonSession,
-      getRowId: () => rowId,
-      getSessionId: () => sessionId
-    };
-  })();
-
-  /* ---------- Test Abort Controller ---------- */
   let currentTestAbort = null;
   function startTestAbort() {
     currentTestAbort = T.createAbortSignal();
