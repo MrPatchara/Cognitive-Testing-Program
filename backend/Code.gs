@@ -79,12 +79,18 @@ const RAW_KEYS = [
 /* ---------- Entry Point ---------- */
 function doPost(e) {
   try {
-    const data = JSON.parse(e.postData.contents);
+    // Handle CORS preflight — MUST check BEFORE parsing JSON
+    // GAS may not have e.httpMethod for OPTIONS, check multiple ways
+    const isOptions = e.httpMethod === 'OPTIONS' || 
+                      (e.parameters && e.parameters.httpMethod === 'OPTIONS') ||
+                      (e.postData && e.postData.type === 'application/json' && e.postData.contents === '');
     
-    // CORS preflight handling
-    if (e.httpMethod === 'OPTIONS') {
+    if (isOptions) {
       return corsResponse({});
     }
+    
+    // Now safe to parse JSON
+    const data = JSON.parse(e.postData.contents || '{}');
     
     // Honeypot check
     if (data.honeypot || data.website) {
@@ -126,11 +132,6 @@ function doPost(e) {
 function doGet(e) {
   // Health check endpoint
   return corsResponse({ ok: true, service: 'CTB Logger', time: new Date().toISOString() });
-}
-
-function doOptions(e) {
-  // Handle CORS preflight requests
-  return corsResponse({});
 }
 
 /* ---------- Handlers ---------- */
