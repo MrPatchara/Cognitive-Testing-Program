@@ -4,11 +4,6 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": null,
-  "functions": {
-    "api/log.js": {
-      "runtime": "edge"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
