@@ -1,61 +1,38 @@
-/* ============================================================
- * api/log.js — Vercel Serverless Function: Proxy to GAS
- * Server-to-server = ไม่มี CORS issue
- * Runtime: Node.js (auto-detected)
- * Relies on Vercel Node runtime auto-parsed req.body
- * ============================================================ */
+export default async function handler(request) {
+  const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
+  const cors = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
 
-const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
+  if (request.method === 'OPTIONS') return new Response(null, { status: 200, headers: cors });
+  if (request.method !== 'POST') return Response.json({ ok: false, error: 'Method not allowed' }, { status: 405, headers: cors });
 
-module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', 'https://www.cognitivetesting.me');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Access-Control-Max-Age', '86400');
+  if (!GAS_WEBHOOK_URL) return Response.json({ ok: false, error: 'GAS_WEBHOOK_URL not set' }, { status: 500, headers: cors });
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  let data;
+  try {
+    data = await request.json();
+  } catch (e) {
+    return Response.json({ ok: false, error: 'Bad JSON body', msg: e.message }, { status: 400, headers: cors });
   }
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'Method not allowed' });
-  }
-
-  if (!GAS_WEBHOOK_URL) {
-    return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not configured' });
-  }
-
-  let payload = req.body;
-  console.log('typeof req.body:', typeof payload);
-  console.log('req.body:', JSON.stringify(payload));
-  console.log('body keys:', payload && typeof payload === 'object' ? Object.keys(payload) : 'n/a');
-  console.log('has action:', payload && 'action' in payload);
-
-  if (!payload || typeof payload !== 'object' || !payload.action) {
-    return res.status(400).json({ ok: false, error: 'Missing action', bodyType: typeof payload, body: payload });
+  if (!data || !data.action) {
+    return Response.json({ ok: false, error: 'Missing action', data }, { status: 400, headers: cors });
   }
 
   try {
-    const gasRes = await fetch(GAS_WEBHOOK_URL, {
+    const r = await fetch(GAS_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(data),
     });
-
-    const responseText = await gasRes.text();
-    console.log('GAS status:', gasRes.status);
-    console.log('GAS text:', responseText);
-
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (e) {
-      return res.status(200).json({ ok: true, rowId: 'unknown', warning: 'GAS not JSON', raw: responseText });
-    }
-
-    return res.status(gasRes.ok ? 200 : gasRes.status).json(data);
-  } catch (err) {
-    console.error('Proxy error:', err);
-    return res.status(500).json({ ok: false, error: err.message });
+    const text = await r.text();
+    let json;
+    try { json = JSON.parse(text); } catch (e) { json = { ok: true, raw: text }; }
+    return Response.json(json, { status: r.ok ? 200 : r.status, headers: cors });
+  } catch (e) {
+    return Response.json({ ok: false, error: e.message }, { status: 500, headers: cors });
   }
-};
+}
