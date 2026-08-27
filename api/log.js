@@ -25,6 +25,7 @@ module.exports = async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: controller.signal,
+      redirect: 'follow',
     });
     clearTimeout(timeout);
     
