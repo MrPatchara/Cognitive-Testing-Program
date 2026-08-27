@@ -1,4 +1,4 @@
-const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
+const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwDmYVdZoCT4VFs2uvKUGETTFcFEOZbcR-gsQT8sk5WBbD3RjKKbbaL2B-4EKhrgwg1og/exec';
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', 'https://www.cognitivetesting.me');
@@ -8,12 +8,6 @@ module.exports = async (req, res) => {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
-
-  // Debug: show env status
-  console.log('GAS_WEBHOOK_URL set:', !!GAS_WEBHOOK_URL);
-  console.log('GAS_WEBHOOK_URL value:', GAS_WEBHOOK_URL ? GAS_WEBHOOK_URL.substring(0, 50) + '...' : 'undefined');
-
-  if (!GAS_WEBHOOK_URL) return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not set' });
 
   const payload = req.body;
 
