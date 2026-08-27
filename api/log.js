@@ -9,26 +9,40 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
+  // Debug: show env status
+  console.log('GAS_WEBHOOK_URL set:', !!GAS_WEBHOOK_URL);
+  console.log('GAS_WEBHOOK_URL value:', GAS_WEBHOOK_URL ? GAS_WEBHOOK_URL.substring(0, 50) + '...' : 'undefined');
+
   if (!GAS_WEBHOOK_URL) return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not set' });
 
   const payload = req.body;
 
-  // Always return 200 with details for debugging
   if (!payload || !payload.action) {
-    return res.status(200).json({ ok: false, error: 'Missing action', debug: { hasBody: !!payload, body: payload } });
+    return res.status(400).json({ ok: false, error: 'Missing action', debug: { hasBody: !!payload, body: payload } });
   }
 
   try {
+    console.log('Fetching GAS:', GAS_WEBHOOK_URL);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    
     const r = await fetch(GAS_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
+    
+    console.log('GAS status:', r.status);
     const text = await r.text();
+    console.log('GAS text:', text);
+    
     let data;
     try { data = JSON.parse(text); } catch (e) { data = { ok: true, raw: text }; }
     return res.status(200).json(data);
   } catch (e) {
-    return res.status(200).json({ ok: false, error: e.message });
+    console.error('Proxy error:', e.name, e.message);
+    return res.status(200).json({ ok: false, error: e.name + ': ' + e.message, hint: e.name === 'AbortError' ? 'GAS timeout (15s)' : 'network error' });
   }
 };
