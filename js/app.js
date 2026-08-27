@@ -81,9 +81,10 @@ const App = (() => {
       if (!WEBHOOK_URL) {
         throw new Error('Webhook URL not configured');
       }
+      // Use text/plain to avoid CORS preflight (GAS doesn't handle OPTIONS)
       const res = await fetch(WEBHOOK_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
       });
       if (!res.ok) {

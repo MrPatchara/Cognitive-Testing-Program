@@ -89,8 +89,17 @@ function doPost(e) {
       return corsResponse({});
     }
     
-    // Now safe to parse JSON
-    const data = JSON.parse(e.postData.contents || '{}');
+    // Parse payload — handle both application/json and text/plain (for CORS simple request)
+    const contentType = e.postData?.type || '';
+    let data = {};
+    if (e.postData && e.postData.contents) {
+      try {
+        data = JSON.parse(e.postData.contents);
+      } catch (parseErr) {
+        console.error('JSON parse error:', parseErr, 'contentType:', contentType);
+        return corsResponse({ ok: false, error: 'Invalid JSON payload' }, 400);
+      }
+    }
     
     // Honeypot check
     if (data.honeypot || data.website) {
