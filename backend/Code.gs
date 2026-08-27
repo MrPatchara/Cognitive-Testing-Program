@@ -128,6 +128,11 @@ function doGet(e) {
   return corsResponse({ ok: true, service: 'CTB Logger', time: new Date().toISOString() });
 }
 
+function doOptions(e) {
+  // Handle CORS preflight requests
+  return corsResponse({});
+}
+
 /* ---------- Handlers ---------- */
 function handleCreate(sh, data, ip) {
   // Validate required fields
