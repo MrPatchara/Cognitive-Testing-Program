@@ -1,10 +1,30 @@
 /* ============================================================
  * api/log.js — Vercel Serverless Function: Proxy to GAS
  * Server-to-server = ไม่มี CORS issue
- * Vercel auto-parses JSON body into req.body
  * ============================================================ */
 
 const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
+
+// Parse body - Vercel may not auto-parse in all runtimes
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString('utf8');
+    });
+    req.on('end', () => {
+      try {
+        const parsed = body ? JSON.parse(body) : {};
+        console.log('Parsed body:', parsed);
+        resolve(parsed);
+      } catch (e) {
+        console.error('JSON parse error:', e, 'raw:', body);
+        resolve({});
+      }
+    });
+    req.on('error', reject);
+  });
+}
 
 module.exports = async (req, res) => {
   // CORS headers for browser
@@ -27,13 +47,11 @@ module.exports = async (req, res) => {
     return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not configured' });
   }
 
-  // Vercel auto-parses JSON body
-  const payload = req.body;
+  // Parse body manually
+  const payload = await parseBody(req);
   
   console.log('Parsed payload:', JSON.stringify(payload));
-  console.log('Payload keys:', Object.keys(payload || {}));
   console.log('Has action:', payload && 'action' in payload);
-  console.log('Action value:', payload?.action);
 
   // Validate required fields
   if (!payload || !payload.action) {
@@ -50,7 +68,6 @@ module.exports = async (req, res) => {
     });
 
     console.log('GAS status:', gasRes.status);
-    console.log('GAS headers:', Object.fromEntries(gasRes.headers.entries()));
 
     const responseText = await gasRes.text();
     console.log('GAS response text:', responseText);
