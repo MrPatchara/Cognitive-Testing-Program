@@ -22,8 +22,16 @@ module.exports = async (req, res) => {
   }
 
   if (!GAS_WEBHOOK_URL) {
+    console.error('GAS_WEBHOOK_URL not configured');
     return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not configured' });
   }
+
+  // Log incoming request for debugging
+  console.log('Proxy received request:', {
+    method: req.method,
+    headers: req.headers,
+    body: req.body
+  });
 
   try {
     // Forward to GAS
@@ -33,8 +41,19 @@ module.exports = async (req, res) => {
       body: JSON.stringify(req.body)
     });
 
-    const data = await gasRes.json().catch(() => ({}));
-    
+    console.log('GAS response status:', gasRes.status);
+
+    const responseText = await gasRes.text();
+    console.log('GAS response text:', responseText);
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseErr) {
+      console.error('Failed to parse GAS response:', parseErr, responseText);
+      return res.status(500).json({ ok: false, error: 'Invalid GAS response', raw: responseText });
+    }
+
     if (!gasRes.ok) {
       return res.status(gasRes.status).json(data);
     }
