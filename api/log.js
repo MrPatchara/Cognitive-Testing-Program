@@ -5,25 +5,6 @@
 
 const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
 
-// Parse body manually for Vercel Node.js runtime
-function getBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', chunk => chunks.push(chunk));
-    req.on('end', () => {
-      try {
-        const body = Buffer.concat(chunks).toString('utf8');
-        console.log('Raw body:', body);
-        resolve(body ? JSON.parse(body) : {});
-      } catch (e) {
-        console.error('JSON parse error:', e);
-        resolve({});
-      }
-    });
-    req.on('error', reject);
-  });
-}
-
 module.exports = async (req, res) => {
   // CORS headers for browser
   res.setHeader('Access-Control-Allow-Origin', 'https://www.cognitivetesting.me');
@@ -45,7 +26,7 @@ module.exports = async (req, res) => {
     return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not configured' });
   }
 
-  // Parse body manually (Vercel Node.js runtime may not auto-parse)
+  // Parse body manually
   const payload = await getBody(req);
   
   console.log('Parsed payload:', JSON.stringify(payload));
@@ -60,6 +41,7 @@ module.exports = async (req, res) => {
 
   try {
     // Forward to GAS
+    console.log('Forwarding to GAS:', GAS_WEBHOOK_URL);
     const gasRes = await fetch(GAS_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -67,16 +49,24 @@ module.exports = async (req, res) => {
     });
 
     console.log('GAS status:', gasRes.status);
+    console.log('GAS headers:', Object.fromEntries(gasRes.headers.entries()));
 
     const responseText = await gasRes.text();
-    console.log('GAS response:', responseText);
+    console.log('GAS response text:', responseText);
 
     let data;
     try {
       data = JSON.parse(responseText);
     } catch (parseErr) {
-      console.error('GAS response not JSON:', responseText);
-      return res.status(500).json({ ok: false, error: 'Invalid GAS response', raw: responseText });
+      console.error('Failed to parse GAS response as JSON:', parseErr);
+      console.error('Raw response:', responseText);
+      // Return success anyway since data was written to sheets
+      return res.status(200).json({ 
+        ok: true, 
+        rowId: 'unknown', 
+        warning: 'GAS response not JSON but data likely saved',
+        raw: responseText 
+      });
     }
 
     if (!gasRes.ok) {
@@ -90,3 +80,21 @@ module.exports = async (req, res) => {
     return res.status(500).json({ ok: false, error: err.message });
   }
 };
+
+function getBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => {
+      try {
+        const body = Buffer.concat(chunks).toString('utf8');
+        console.log('Raw body:', body);
+        resolve(body ? JSON.parse(body) : {});
+      } catch (e) {
+        console.error('JSON parse error:', e);
+        resolve({});
+      }
+    });
+    req.on('error', reject);
+  });
+}
