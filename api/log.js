@@ -6,6 +6,20 @@
 
 const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
 
+function send(res, status, obj) {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  return res.status(status).json(obj);
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
 module.exports = async (req, res) => {
   // CORS headers for browser
   res.setHeader('Access-Control-Allow-Origin', 'https://www.cognitivetesting.me');
@@ -19,38 +33,59 @@ module.exports = async (req, res) => {
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'Method not allowed' });
+    return send(res, 405, { ok: false, error: 'Method not allowed' });
+  }
+
+  // ---- DEBUG: inspect what Vercel gives us ----
+  const dbg = {
+    method: req.method,
+    url: req.url,
+    contentType: req.headers['content-type'] || null,
+    contentLength: req.headers['content-length'] || null,
+    transferEncoding: req.headers['transfer-encoding'] || null,
+    hasBody: typeof req.body !== 'undefined',
+    bodyType: req.body === null ? 'null' : typeof req.body,
+    rawBodyPresent: typeof req.rawBody !== 'undefined',
+    rawBodyLen: req.rawBody && req.rawBody.length,
+  };
+  console.log('DBG start:', JSON.stringify(dbg));
+  if (dbg.hasBody) console.log('DBG req.body=', JSON.stringify(req.body));
+
+  // ---- Attempt 1: req.body (may be auto-parsed) ----
+  let payload = req.body;
+
+  // ---- Attempt 2: req.rawBody (Vercel legacy) ----
+  if (!payload && req.rawBody) {
+    console.log('DBG rawBody:', String(req.rawBody));
+    try {
+      payload = JSON.parse(req.rawBody.toString());
+    } catch (e) {
+      console.error('DBG rawBody parse fail:', e.message);
+    }
+  }
+
+  // ---- Attempt 3: event-based stream read ----
+  if (!payload || typeof payload !== 'object' || Object.keys(payload).length === 0) {
+    try {
+      const raw = await readBody(req);
+      console.log('DBG stream body len=', raw ? raw.length : 0);
+      if (raw) console.log('DBG stream body=', raw.substring(0, 500));
+      if (raw) payload = JSON.parse(raw);
+    } catch (e) {
+      console.error('DBG stream read error:', e.message);
+    }
+  }
+
+  console.log('DBG FINAL payload keys=', payload ? Object.keys(payload) : 'none');
+
+  // Validate required fields
+  if (!payload || typeof payload !== 'object' || !payload.action) {
+    return send(res, 400, { ok: false, error: 'Missing action' });
   }
 
   if (!GAS_WEBHOOK_URL) {
     console.error('GAS_WEBHOOK_URL not configured');
-    return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not configured' });
-  }
-
-  // Parse body - try req.body (Vercel Node auto-parse), then manual stream read
-  let payload = req.body;
-
-  if (!payload || typeof payload !== 'object' || Object.keys(payload).length === 0) {
-    try {
-      const chunks = [];
-      for await (const chunk of req) {
-        chunks.push(chunk);
-      }
-      const body = Buffer.concat(chunks).toString('utf8');
-      console.log('Raw body from stream:', body);
-      payload = body ? JSON.parse(body) : {};
-    } catch (e) {
-      console.error('Stream parse error:', e);
-      payload = {};
-    }
-  }
-
-  console.log('Final payload:', JSON.stringify(payload));
-  console.log('Has action:', payload && 'action' in payload);
-
-  // Validate required fields
-  if (!payload || !payload.action) {
-    return res.status(400).json({ ok: false, error: 'Missing action' });
+    return send(res, 500, { ok: false, error: 'GAS_WEBHOOK_URL not configured' });
   }
 
   try {
@@ -73,23 +108,22 @@ module.exports = async (req, res) => {
     } catch (parseErr) {
       console.error('Failed to parse GAS response as JSON:', parseErr);
       console.error('Raw response:', responseText);
-      // Return success anyway since data was written to sheets
-      return res.status(200).json({ 
-        ok: true, 
-        rowId: 'unknown', 
+      return send(res, 200, {
+        ok: true,
+        rowId: 'unknown',
         warning: 'GAS response not JSON but data likely saved',
-        raw: responseText 
+        raw: responseText
       });
     }
 
     if (!gasRes.ok) {
-      return res.status(gasRes.status).json(data);
+      return send(res, gasRes.status, data);
     }
 
-    return res.status(200).json(data);
+    return send(res, 200, data);
 
   } catch (err) {
     console.error('Proxy error:', err);
-    return res.status(500).json({ ok: false, error: err.message });
+    return send(res, 500, { ok: false, error: err.message });
   }
 };
