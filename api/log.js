@@ -1,25 +1,10 @@
 /* ============================================================
  * api/log.js — Vercel Serverless Function: Proxy to GAS
  * Server-to-server = ไม่มี CORS issue
+ * Vercel auto-parses JSON body into req.body
  * ============================================================ */
 
 const GAS_WEBHOOK_URL = process.env.GAS_WEBHOOK_URL;
-
-// Simple body parser for Vercel
-function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch (e) {
-        reject(e);
-      }
-    });
-    req.on('error', reject);
-  });
-}
 
 module.exports = async (req, res) => {
   // CORS headers for browser
@@ -42,21 +27,15 @@ module.exports = async (req, res) => {
     return res.status(500).json({ ok: false, error: 'GAS_WEBHOOK_URL not configured' });
   }
 
-  // Parse body
-  let payload;
-  try {
-    payload = await parseBody(req);
-  } catch (e) {
-    console.error('Body parse error:', e);
-    return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
-  }
+  // Vercel auto-parses JSON body
+  const payload = req.body;
+  
+  console.log('Proxy received:', JSON.stringify(payload));
 
-  // Log incoming request for debugging
-  console.log('Proxy received request:', {
-    method: req.method,
-    headers: req.headers,
-    body: payload
-  });
+  // Validate required fields
+  if (!payload || !payload.action) {
+    return res.status(400).json({ ok: false, error: 'Missing action' });
+  }
 
   try {
     // Forward to GAS
@@ -66,16 +45,16 @@ module.exports = async (req, res) => {
       body: JSON.stringify(payload)
     });
 
-    console.log('GAS response status:', gasRes.status);
+    console.log('GAS status:', gasRes.status);
 
     const responseText = await gasRes.text();
-    console.log('GAS response text:', responseText);
+    console.log('GAS response:', responseText);
 
     let data;
     try {
       data = JSON.parse(responseText);
     } catch (parseErr) {
-      console.error('Failed to parse GAS response:', parseErr, responseText);
+      console.error('GAS response not JSON:', responseText);
       return res.status(500).json({ ok: false, error: 'Invalid GAS response', raw: responseText });
     }
 
