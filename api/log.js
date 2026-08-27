@@ -13,8 +13,9 @@ module.exports = async (req, res) => {
 
   const payload = req.body;
 
+  // Always return 200 with details for debugging
   if (!payload || !payload.action) {
-    return res.status(400).json({ ok: false, error: 'Missing action', body: payload });
+    return res.status(200).json({ ok: false, error: 'Missing action', debug: { hasBody: !!payload, body: payload } });
   }
 
   try {
@@ -26,8 +27,8 @@ module.exports = async (req, res) => {
     const text = await r.text();
     let data;
     try { data = JSON.parse(text); } catch (e) { data = { ok: true, raw: text }; }
-    return res.status(r.ok ? 200 : r.status).json(data);
+    return res.status(200).json(data);
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(200).json({ ok: false, error: e.message });
   }
 };
