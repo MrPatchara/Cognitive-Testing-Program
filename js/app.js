@@ -14,6 +14,266 @@ const App = (() => {
     running: false
   };
 
+  /* ---------- Logging to Google Sheets ---------- */
+  const Log = (() => {
+    const WEBHOOK_URL = (window.CTB_CONFIG && window.CTB_CONFIG.webhookUrl) || '';
+    const APP_VERSION = (window.CTB_CONFIG && window.CTB_CONFIG.appVersion) || '1.0.0';
+    let sessionId = null;
+    let rowId = null;
+    let ipAddress = '';
+    let userAgent = navigator.userAgent;
+    let pendingUpdates = [];
+    let syncBadge = null;
+    let isOnline = navigator.onLine;
+    let retryTimer = null;
+
+    const STORAGE_KEY = 'ctb_pending_logs';
+
+    function initSyncBadge() {
+      if (document.getElementById('sync-badge')) return;
+      syncBadge = document.createElement('div');
+      syncBadge.id = 'sync-badge';
+      syncBadge.className = 'sync-badge';
+      syncBadge.title = 'สถานะซิงค์ข้อมูล';
+      syncBadge.textContent = '☁';
+      document.body.appendChild(syncBadge);
+      updateSyncBadge('idle');
+    }
+
+    function updateSyncBadge(status) {
+      if (!syncBadge) return;
+      syncBadge.className = 'sync-badge ' + status;
+      const icons = { idle: '☁', synced: '✓', pending: '⟳', error: '⚠', offline: '✕' };
+      syncBadge.textContent = icons[status] || '☁';
+      syncBadge.title = { idle: 'รอซิงค์', synced: 'ซิงค์แล้ว', pending: 'กำลังซิงค์...', error: 'ซิงค์ล้มเหลว', offline: 'ออฟไลน์' }[status] || '';
+    }
+
+    async function fetchIP() {
+      try {
+        const res = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
+        const data = await res.json();
+        ipAddress = data.ip || '';
+      } catch (e) {
+        ipAddress = 'unknown';
+      }
+    }
+
+    function loadPendingQueue() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) pendingUpdates = JSON.parse(stored);
+      } catch (e) {}
+    }
+
+    function savePendingQueue() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingUpdates));
+      } catch (e) {}
+    }
+
+    function queueUpdate(payload) {
+      pendingUpdates.push({ payload, timestamp: Date.now(), retries: 0 });
+      savePendingQueue();
+      processQueue();
+    }
+
+    async function sendToGAS(payload) {
+      if (!WEBHOOK_URL) {
+        throw new Error('Webhook URL not configured');
+      }
+      const res = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
+    async function processQueue() {
+      if (pendingUpdates.length === 0) return;
+      if (!isOnline) {
+        updateSyncBadge('offline');
+        return;
+      }
+      updateSyncBadge('pending');
+      
+      const item = pendingUpdates[0];
+      try {
+        const result = await sendToGAS(item.payload);
+        if (result.ok) {
+          // If create action, store rowId
+          if (item.payload.action === 'create' && result.rowId) {
+            rowId = result.rowId;
+            sessionId = result.sessionId || sessionId;
+          }
+          pendingUpdates.shift();
+          savePendingQueue();
+          updateSyncBadge('synced');
+          // Continue processing
+          if (pendingUpdates.length > 0) {
+            setTimeout(processQueue, 100);
+          }
+        } else {
+          throw new Error(result.error);
+        }
+      } catch (e) {
+        console.warn('Log send failed:', e);
+        item.retries++;
+        if (item.retries >= 5) {
+          // Max retries reached, keep in queue but mark error
+          updateSyncBadge('error');
+        } else {
+          // Exponential backoff
+          const delay = Math.min(1000 * Math.pow(2, item.retries), 30000);
+          updateSyncBadge('error');
+          setTimeout(() => {
+            updateSyncBadge('pending');
+            processQueue();
+          }, delay);
+        }
+      }
+    }
+
+    function buildMeta() {
+      return {
+        sessionId: sessionId || crypto.randomUUID(),
+        name: state.athlete.name,
+        dob: state.athlete.dob,
+        gender: state.athlete.gender === 'ชาย' ? 'M' : state.athlete.gender === 'หญิง' ? 'F' : '',
+        education: state.athlete.education,
+        groupName: state.groupName,
+        ip: ipAddress,
+        userAgent,
+        appVersion: APP_VERSION,
+        startedAt: new Date().toISOString()
+      };
+    }
+
+    function buildSummary(extraResults = {}) {
+      const allResults = { ...state.results, ...extraResults };
+      const values = Scoring.compute(allResults);
+      const ev = state.groupName
+        ? Scoring.evaluateAll(values, state.groupName)
+        : Scoring.evaluateRaw(values);
+      
+      const summary = {};
+      ev.rows.forEach(r => {
+        if (r.key && r.value != null) summary[r.key] = r.value;
+      });
+      // Add total score
+      if (ev.totalScore != null) summary.Total_Norm_Score = ev.totalScore;
+      if (ev.totalLevel != null) summary.Total_Level = ev.totalLevel;
+      
+      const normLevels = {};
+      ev.rows.forEach(r => {
+        if (r.key && r.level != null) {
+          normLevels['level_' + r.key.replace(/_/g, '_')] = r.level;
+        }
+      });
+      
+      return { summary, normLevels, raw: allResults };
+    }
+
+    function createSession() {
+      const meta = buildMeta();
+      const { summary, normLevels, raw } = buildSummary({});
+      const payload = {
+        action: 'create',
+        meta,
+        status: 'started',
+        summary,
+        normLevels,
+        normGroup: state.groupName,
+        raw: {}
+      };
+      queueUpdate(payload);
+    }
+
+    function updateSession(testId, testResults) {
+      if (!rowId) return;
+      const { summary, normLevels, raw } = buildSummary(testResults);
+      const payload = {
+        action: 'update',
+        rowId,
+        status: 'testing',
+        summary,
+        normLevels,
+        normGroup: state.groupName,
+        raw: {}
+      };
+      queueUpdate(payload);
+    }
+
+    function finalizeSession(allRawData) {
+      if (!rowId) return;
+      const { summary, normLevels } = buildSummary({});
+      const payload = {
+        action: 'update',
+        rowId,
+        status: 'completed',
+        summary,
+        normLevels,
+        normGroup: state.groupName,
+        raw: allRawData || {},
+        completedAt: new Date().toISOString()
+      };
+      queueUpdate(payload);
+    }
+
+    function abandonSession() {
+      if (!rowId) return;
+      const { summary, normLevels } = buildSummary({});
+      const payload = {
+        action: 'update',
+        rowId,
+        status: 'abandoned',
+        summary,
+        normLevels,
+        normGroup: state.groupName,
+        raw: {},
+        completedAt: new Date().toISOString()
+      };
+      queueUpdate(payload);
+    }
+
+    // Online/offline detection
+    window.addEventListener('online', () => {
+      isOnline = true;
+      processQueue();
+    });
+    window.addEventListener('offline', () => {
+      isOnline = false;
+      updateSyncBadge('offline');
+    });
+
+    // Init on load
+    loadPendingQueue();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        initSyncBadge();
+        fetchIP();
+        processQueue();
+      });
+    } else {
+      initSyncBadge();
+      fetchIP();
+      processQueue();
+    }
+
+    return {
+      createSession,
+      updateSession,
+      finalizeSession,
+      abandonSession,
+      getRowId: () => rowId,
+      getSessionId: () => sessionId
+    };
+  })();
+
   /* ---------- Test Abort Controller ---------- */
   let currentTestAbort = null;
   function startTestAbort() {
@@ -287,8 +547,8 @@ const App = (() => {
           <label>ระดับการศึกษา *
             <select id="f-edu">
               <option value="">— เลือก —</option>
-              <option>ม.1-3</option><option>ม.4-6</option>
-              <option>ปวช.</option><option>ปวส.</option><option>ปริญญาตรีขึ้นไป</option>
+              <option value="ม.1-3">ม.1-3</option><option value="ม.4-6">ม.4-6</option>
+              <option value="ปวช.">ปวช.</option><option value="ปวส.">ปวส.</option><option value="อุดมศึกษา">ปริญญาตรีขึ้นไป</option>
             </select>
           </label>
           <label>ชนิดกีฬา
@@ -317,6 +577,14 @@ const App = (() => {
               <option>หญิง ม.4-6</option>
             </select>
           </label>
+          <!-- Consent checkbox for PDPA compliance -->
+          <label class="full consent-label">
+            <input type="checkbox" id="f-consent" required>
+            <span>ยินยอมให้เก็บข้อมูล IP, อุปกรณ์ และผลการทดสอบ เพื่อบันทึกลง Google Sheets (ไม่เผยแพร่ต่อบุคคลที่ 3)</span>
+          </label>
+          <!-- Honeypot field (hidden from users, filled by bots) -->
+          <input type="text" name="website" id="f-honeypot" tabindex="-1" autocomplete="off" 
+                 style="display:none!important;position:absolute;left:-9999px" aria-hidden="true">
         </div>
         <div id="norm-preview" class="norm-preview hidden"></div>
         <div class="form-actions">
@@ -351,10 +619,14 @@ const App = (() => {
       const dob = document.getElementById('f-dob').value;
       const gender = document.getElementById('f-gender').value;
       const edu = document.getElementById('f-edu').value;
+      const consent = document.getElementById('f-consent').checked;
+      const honeypot = document.getElementById('f-honeypot').value;
       if (!name) return alert('กรุณากรอกชื่อ');
       if (!dob) return alert('กรุณาเลือกวันเกิด');
       if (!gender) return alert('กรุณาเลือกเพศ');
       if (!edu) return alert('กรุณาเลือกระดับการศึกษา');
+      if (!consent) return alert('กรุณายินยอมให้เก็บข้อมูลเพื่อดำเนินการต่อ');
+      if (honeypot) return; // Bot detected, silently ignore
       state.athlete = {
         name, dob, gender,
         handedness: document.getElementById('f-hand').value,
@@ -363,7 +635,8 @@ const App = (() => {
         experience: document.getElementById('f-exp').value,
         practiceDays: document.getElementById('f-days').value,
         practiceHours: document.getElementById('f-hours').value,
-        note: document.getElementById('f-note').value.trim()
+        note: document.getElementById('f-note').value.trim(),
+        consent: true
       };
       /* กลุ่มเกณฑ์: ผู้ใช้เลือกเอง (auto ตอนตั้งค่าเพศ/การศึกษา) หรือ "" เพื่อไม่เทียบเกณฑ์ */
       state.groupName = document.getElementById('f-norm').value;
@@ -410,6 +683,38 @@ const App = (() => {
     window.scrollTo(0, 0);
   }
 
+  /* ---------- Raw Data Collection ---------- */
+  function collectRawData() {
+    const raw = {};
+    const r = state.results;
+    
+    // SRT trials
+    if (r.srt) raw.srt_trials = r.srt;
+    
+    // CRT trials
+    if (r.crt) raw.crt_trials = r.crt;
+    
+    // TMT nodes (only summary available currently)
+    if (r.tmtA) raw.tmtA_nodes = [{ timeSec: r.tmtA.timeSec, errors: r.tmtA.errors }];
+    if (r.tmtB) raw.tmtB_nodes = [{ timeSec: r.tmtB.timeSec, errors: r.tmtB.errors }];
+    
+    // Flanker trials
+    if (r.flanker) raw.flanker_trials = r.flanker;
+    
+    // DFT scores (detailed designs not returned by test yet)
+    if (r.dfFilled !== undefined) {
+      raw.df_filled = { score: r.dfFilled };
+      raw.df_empty = { score: r.dfEmpty };
+      raw.df_switching = { score: r.dfSwitching };
+    }
+    
+    // MRT / SVT (only scores returned currently)
+    if (r.mrt !== undefined) raw.mrt_trials = [{ score: r.mrt }];
+    if (r.svt !== undefined) raw.svt_trials = [{ score: r.svt }];
+    
+    return raw;
+  }
+
   /* ---------- โหมดทดสอบ (fullscreen stage) ---------- */
   async function startSession() {
     state.results = {};
@@ -417,6 +722,9 @@ const App = (() => {
     screenEl.classList.add('hidden');
     stageEl.classList.remove('hidden');
     document.getElementById('topbar').classList.remove('hidden');
+
+    // Create logging session
+    Log.createSession();
 
     const queue = TESTS.filter((t) => state.selected.has(t.id));
     const signal = startTestAbort();
@@ -427,8 +735,11 @@ const App = (() => {
       try {
         const res = await t.run(stageEl, { signal });
         Object.assign(state.results, res);
+        // Update log after each test
+        Log.updateSession(t.id, res);
       } catch (err) {
         if (err.name === 'AbortError') {
+          Log.abandonSession();
           state.running = false;
           T.releaseWakeLock();
           T.exitFullscreen();
@@ -437,6 +748,7 @@ const App = (() => {
         }
         console.error(err);
         if (!confirm(`เกิดข้อผิดพลาดใน "${t.name}"\n${err && err.message}\n\nOK = ข้ามไปแบบทดสอบถัดไป / Cancel = หยุดทั้งหมด`)) {
+          Log.abandonSession();
           state.running = false;
           showHome();
           return;
@@ -448,6 +760,11 @@ const App = (() => {
     }
     state.running = false;
     setTopbar('เสร็จสิ้น', '');
+    
+    // Collect raw trial data from all tests
+    const rawData = collectRawData();
+    Log.finalizeSession(rawData);
+    
     showReport();
   }
 

@@ -1,0 +1,12 @@
+{
+  "name": "cognitive-testing-program",
+  "version": "1.0.0",
+  "description": "CTB Web Version - Cognitive Test Battery for Athletes",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "npx serve . -p 8080"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}
