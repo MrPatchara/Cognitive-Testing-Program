@@ -318,13 +318,15 @@ button { font-family: inherit; }
 
 /* ---------- Sync Badge (top-right) ---------- */
 .sync-badge {
-  position: fixed; top: 10px; right: 10px; z-index: 9999;
-  width: 36px; height: 36px; border-radius: 50%;
-  display: grid; place-items: center; font-size: 1.2rem;
+  position: fixed; top: 8px; right: 8px; z-index: 9999;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 1rem;
   background: rgba(15,41,66,.9); color: #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
   transition: transform .2s, opacity .2s;
+  opacity: 0; visibility: hidden;
 }
+.sync-badge.visible { opacity: 1; visibility: visible; }
 .sync-badge.synced { background: rgba(22,163,74,.9); }
 .sync-badge.pending { background: rgba(245,158,11,.9); animation: pulse 1.5s infinite; }
 .sync-badge.error { background: rgba(220,38,38,.9); animation: shake .5s; }

@@ -39,6 +39,13 @@ const App = (() => {
       syncBadge.textContent = '☁';
       document.body.appendChild(syncBadge);
       updateSyncBadge('idle');
+      setSyncBadgeVisible(false);
+    }
+
+    function setSyncBadgeVisible(visible) {
+      if (!syncBadge) return;
+      if (visible) syncBadge.classList.add('visible');
+      else syncBadge.classList.remove('visible');
     }
 
     function updateSyncBadge(status) {
@@ -462,6 +469,7 @@ function buildSummary(extraResults = {}) {
         }
       });
     });
+    setSyncBadgeVisible(false);
   }
 
   /* ---------- modal เกี่ยวกับเรา (port CreditsControl.cs) ---------- */
@@ -653,6 +661,7 @@ function buildSummary(extraResults = {}) {
       showChecklist();
     });
     window.scrollTo(0, 0);
+    setSyncBadgeVisible(true);
   }
 
   /* ---------- จอเลือกแบบทดสอบ ---------- */
@@ -691,6 +700,7 @@ function buildSummary(extraResults = {}) {
       startSession();
     });
     window.scrollTo(0, 0);
+    setSyncBadgeVisible(true);
   }
 
   /* ---------- Raw Data Collection ---------- */
